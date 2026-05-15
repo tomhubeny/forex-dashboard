@@ -3,413 +3,541 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forex Fundamental Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet">
+<title>Forex Fundamental Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
-  :root {
-    --bg: #0a0c0f;
-    --bg2: #111318;
-    --bg3: #1a1d24;
-    --border: rgba(255,255,255,0.07);
-    --border2: rgba(255,255,255,0.12);
-    --text: #e8eaf0;
-    --text2: #8a8d99;
-    --text3: #555866;
-    --green: #1DB97A;
-    --green-dim: rgba(29,185,122,0.12);
-    --red: #E84B4B;
-    --red-dim: rgba(232,75,75,0.12);
-    --amber: #F0A020;
-    --amber-dim: rgba(240,160,32,0.1);
-    --accent: #3B8AFF;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-sans: 'Syne', sans-serif;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; min-height: 100vh; }
+:root {
+  --bg: #0d0f12;
+  --bg2: #141618;
+  --bg3: #1c1e22;
+  --bg4: #242628;
+  --border: rgba(255,255,255,0.06);
+  --border2: rgba(255,255,255,0.1);
+  --text: #e2e4e8;
+  --text2: #8b8f99;
+  --text3: #4a4e5a;
+  --green: #00d084;
+  --green2: rgba(0,208,132,0.15);
+  --red: #ff4466;
+  --red2: rgba(255,68,102,0.15);
+  --gold: #f0b429;
+  --gold2: rgba(240,180,41,0.12);
+  --blue: #3b82f6;
+  --blue2: rgba(59,130,246,0.15);
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --radius: 10px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13px;min-height:100vh}
 
-  /* Header */
-  .header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 16px 24px; border-bottom: 1px solid var(--border);
-    background: var(--bg); position: sticky; top: 0; z-index: 100;
-  }
-  .header-left { display: flex; align-items: center; gap: 12px; }
-  .logo { font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--text); }
-  .logo span { color: var(--green); }
-  .status-pill {
-    display: flex; align-items: center; gap: 6px;
-    padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border2);
-    font-size: 11px; font-family: var(--font-mono); color: var(--text2);
-  }
-  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
-  .dot.ok { background: var(--green); animation: pulse 2s infinite; }
-  .dot.err { background: var(--red); }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-  .header-right { display: flex; align-items: center; gap: 10px; }
-  .ts { font-size: 11px; font-family: var(--font-mono); color: var(--text3); }
-  .btn {
-    padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border2);
-    background: transparent; color: var(--text); font-family: var(--font-sans);
-    font-size: 12px; cursor: pointer; transition: all .15s;
-  }
-  .btn:hover { background: var(--bg3); border-color: var(--border2); }
+/* ── Header ── */
+.header{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--bg)}
+.header-brand{display:flex;align-items:center;gap:16px}
+.brand-name{font-size:14px;font-weight:600;letter-spacing:.05em;color:var(--text)}
+.brand-name span{color:var(--gold)}
+.pair-select{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:var(--bg3);border:1px solid var(--border2);border-radius:6px;
+  cursor:pointer;font-size:13px;font-weight:500;color:var(--text);
+}
+.pair-select select{background:transparent;border:none;color:var(--text);font-family:var(--sans);font-size:13px;font-weight:500;outline:none;cursor:pointer}
+.header-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
+.status-dot.ok{background:var(--green);animation:pulse 2s infinite}
+.status-dot.err{background:var(--red)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.status-text{font-size:11px;font-family:var(--mono);color:var(--text2)}
+.btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--sans);font-size:12px;cursor:pointer;transition:all .15s}
+.btn:hover{background:var(--bg3);color:var(--text)}
+.nav-tabs{display:flex;gap:2px}
+.nav-tab{padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--text2);font-family:var(--sans);font-size:12px;cursor:pointer;transition:all .15s}
+.nav-tab:hover{color:var(--text)}
+.nav-tab.active{background:var(--bg3);color:var(--text);font-weight:500}
 
-  /* Main layout */
-  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+/* ── Layout ── */
+.main{display:grid;grid-template-columns:1fr 280px;gap:12px;padding:14px 20px;max-width:1500px;margin:0 auto}
+.left-col{display:flex;flex-direction:column;gap:12px}
+.right-col{display:flex;flex-direction:column;gap:12px}
 
-  /* Currency grid */
-  .ccy-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 16px; }
-  .ccy-cell {
-    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 12px 10px; cursor: pointer; transition: all .15s; text-align: center;
-  }
-  .ccy-cell:hover { border-color: var(--border2); background: var(--bg3); }
-  .ccy-cell.active { border-color: var(--green); background: var(--green-dim); }
-  .ccy-name { font-size: 10px; font-family: var(--font-mono); color: var(--text2); margin-bottom: 4px; letter-spacing: .06em; }
-  .ccy-score { font-size: 22px; font-weight: 600; font-family: var(--font-mono); }
-  .ccy-delta { font-size: 10px; font-family: var(--font-mono); margin-top: 2px; }
-  .pos { color: var(--green); }
-  .neg { color: var(--red); }
-  .neu { color: var(--text3); }
+/* ── Card ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.card-title{font-size:11px;font-weight:500;color:var(--text2);letter-spacing:.06em;text-transform:uppercase}
+.card-meta{font-size:11px;font-family:var(--mono);color:var(--text3)}
 
-  /* Two column */
-  .row2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin-bottom: 12px; }
-  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+/* ── Score History Chart ── */
+.score-summary{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.score-main{display:flex;align-items:baseline;gap:10px}
+.score-big{font-size:36px;font-weight:600;font-family:var(--mono)}
+.score-bias{display:flex;align-items:center;gap:5px;font-size:13px;font-weight:500}
+.score-arrow{font-size:14px}
+.score-24h{padding:4px 10px;border-radius:20px;border:1px solid var(--border2);font-size:11px;font-family:var(--mono);color:var(--text2)}
+.time-filters{display:flex;gap:4px}
+.tf-btn{padding:4px 10px;border-radius:20px;border:1px solid transparent;background:transparent;color:var(--text3);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s}
+.tf-btn:hover{color:var(--text2)}
+.tf-btn.active{background:var(--bg4);border-color:var(--border2);color:var(--text)}
+.chart-wrap{position:relative;height:200px;margin:0 -4px}
 
-  /* Cards */
-  .card {
-    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
-  }
-  .card-label {
-    font-size: 10px; font-family: var(--font-mono); color: var(--text3);
-    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .card-label span { color: var(--text2); }
+/* ── Currency grid ── */
+.ccy-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:6px}
+.ccy-cell{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s}
+.ccy-cell:hover{border-color:var(--border2)}
+.ccy-cell.active{border-color:var(--gold);background:var(--gold2)}
+.ccy-label{font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:3px;letter-spacing:.05em}
+.ccy-val{font-size:18px;font-weight:600;font-family:var(--mono)}
+.ccy-delta{font-size:10px;font-family:var(--mono);margin-top:2px}
 
-  /* Detail score */
-  .detail-top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
-  .detail-score { font-size: 40px; font-weight: 600; font-family: var(--font-mono); }
-  .bias-badge {
-    padding: 3px 10px; border-radius: 20px; font-size: 11px;
-    font-family: var(--font-mono); font-weight: 500;
-  }
-  .detail-delta { font-size: 12px; font-family: var(--font-mono); color: var(--text2); }
+/* ── Pairs table ── */
+.pairs-table{width:100%;border-collapse:collapse}
+.pairs-table th{font-size:10px;font-weight:500;color:var(--text3);letter-spacing:.06em;text-transform:uppercase;padding:0 8px 8px;text-align:left;border-bottom:1px solid var(--border)}
+.pairs-table th:not(:first-child){text-align:center}
+.pairs-table td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:middle}
+.pairs-table tr:last-child td{border-bottom:none}
+.pairs-table tr:hover td{background:var(--bg3)}
+.pair-sym{font-size:13px;font-weight:500;font-family:var(--mono);color:var(--text)}
+.pair-score-cell{text-align:center;font-size:14px;font-weight:600;font-family:var(--mono)}
+.delta-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:20px;border:1px solid var(--border2);font-size:11px;font-family:var(--mono);color:var(--text2)}
+.delta-pill.up{border-color:rgba(0,208,132,.3);color:var(--green)}
+.delta-pill.dn{border-color:rgba(255,68,102,.3);color:var(--red)}
+.delta-pill.neu{border-color:var(--border)}
 
-  /* Pair rows */
-  .pair-row {
-    display: flex; align-items: center; gap: 8px; padding: 6px 0;
-    border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s;
-  }
-  .pair-row:last-child { border-bottom: none; }
-  .pair-row:hover { background: var(--bg3); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
-  .pair-name { font-size: 12px; font-family: var(--font-mono); font-weight: 500; min-width: 68px; }
-  .pair-bar-wrap { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
-  .pair-bar { height: 4px; border-radius: 2px; }
-  .pair-score { font-size: 12px; font-family: var(--font-mono); font-weight: 500; min-width: 30px; text-align: right; }
-  .pair-delta { font-size: 11px; font-family: var(--font-mono); min-width: 34px; text-align: right; }
+/* COT donut */
+.cot-wrap{display:flex;align-items:center;justify-content:center}
+.cot-ring{width:36px;height:36px}
 
-  /* Indicator table */
-  .indic-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
-  .indic-table td { padding: 4px 0; border-bottom: 1px solid var(--border); }
-  .indic-table tr:last-child td { border-bottom: none; }
-  .indic-table td:first-child { color: var(--text2); }
-  .indic-table td:not(:first-child) { text-align: right; }
+/* ── Score Overview (right panel) ── */
+.score-overview-list{display:flex;flex-direction:column;gap:1px}
+.so-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)}
+.so-row:last-child{border-bottom:none}
+.so-label{font-size:12px;color:var(--text2)}
+.so-val{min-width:32px;text-align:center;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;font-family:var(--mono);background:var(--bg3)}
+.so-final{margin-top:8px;display:flex;align-items:center;justify-content:space-between;padding:10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border2)}
+.so-final-label{font-size:12px;font-weight:500;color:var(--text)}
+.so-final-val{font-size:20px;font-weight:700;font-family:var(--mono);padding:4px 12px;border-radius:6px;border:1px solid var(--border2)}
 
-  /* News */
-  .news-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
-  .news-item:last-child { border-bottom: none; }
-  .news-time { font-size: 10px; font-family: var(--font-mono); color: var(--text3); min-width: 80px; padding-top: 2px; }
-  .news-body { flex: 1; }
-  .news-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
-  .news-sub { font-size: 11px; font-family: var(--font-mono); color: var(--text2); }
+/* ── COT panel ── */
+.cot-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cot-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.cot-title{font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:8px;text-align:left;letter-spacing:.05em}
+.cot-legend{display:flex;gap:10px;justify-content:flex-end;margin-bottom:6px}
+.cot-legend span{font-size:10px;font-family:var(--mono);color:var(--text2);display:flex;align-items:center;gap:4px}
+.cot-legend span::before{content:'';width:6px;height:6px;border-radius:50%}
+.cot-legend .lg::before{background:var(--green)}
+.cot-legend .sh::before{background:var(--red)}
+.cot-canvas-wrap{position:relative;height:90px;display:flex;align-items:center;justify-content:center}
+.cot-pct{position:absolute;font-size:11px;font-family:var(--mono);color:var(--text2)}
 
-  .empty { font-size: 12px; color: var(--text3); font-style: italic; padding: 8px 0; }
+/* Rankings */
+.rank-list{display:flex;flex-direction:column;gap:1px}
+.rank-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.rank-row:last-child{border-bottom:none}
+.rank-row:hover{background:var(--bg3);margin:0 -8px;padding:6px 8px;border-radius:6px}
+.rank-pair{font-size:12px;font-family:var(--mono);font-weight:500;min-width:62px}
+.rank-bar-bg{flex:1;height:3px;background:var(--bg4);border-radius:2px;overflow:hidden}
+.rank-bar{height:3px;border-radius:2px}
+.rank-score{font-size:12px;font-family:var(--mono);font-weight:600;min-width:26px;text-align:right}
+.rank-delta{font-size:10px;font-family:var(--mono);min-width:28px;text-align:right}
 
-  /* Tabs */
-  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-  .tab {
-    padding: 6px 16px; border-radius: 6px; border: 1px solid transparent;
-    font-size: 12px; font-family: var(--font-mono); cursor: pointer;
-    color: var(--text2); background: transparent; transition: all .15s;
-  }
-  .tab:hover { color: var(--text); }
-  .tab.active { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+/* News */
+.news-list{display:flex;flex-direction:column}
+.news-row{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.news-row:last-child{border-bottom:none}
+.news-time{font-size:10px;font-family:var(--mono);color:var(--text3);min-width:72px;padding-top:2px}
+.news-content{flex:1}
+.news-title{font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px}
+.news-sub{font-size:11px;font-family:var(--mono);color:var(--text2)}
 
-  /* Pairs full table */
-  .pairs-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
-  .pairs-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border2); font-size: 10px; color: var(--text3); letter-spacing: .06em; font-weight: 500; }
-  .pairs-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
-  .pairs-table tr:hover td { background: var(--bg3); }
+/* Helpers */
+.g{color:var(--green)} .r{color:var(--red)} .gold{color:var(--gold)} .muted{color:var(--text2)}
+.pos-bg{background:var(--green2)} .neg-bg{background:var(--red2)} .neu-bg{background:var(--bg4)}
+.hidden{display:none}
+.empty{font-size:12px;color:var(--text3);padding:8px 0;font-style:italic}
 
-  /* Manual input */
-  .form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .form-row label { font-size: 11px; font-family: var(--font-mono); color: var(--text2); }
-  .form-row select, .form-row input {
-    padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border2);
-    background: var(--bg3); color: var(--text); font-family: var(--font-mono);
-    font-size: 12px; outline: none;
-  }
-  .form-row select:focus, .form-row input:focus { border-color: var(--accent); }
-  .result-box {
-    margin-top: 10px; padding: 10px 14px; border-radius: 8px;
-    background: var(--bg3); border: 1px solid var(--border2);
-    font-family: var(--font-mono); font-size: 12px; color: var(--text);
-  }
-
-  .section-hidden { display: none; }
+/* Pages tabs */
+#page-pairs .main-full{padding:14px 20px;max-width:1500px;margin:0 auto}
+#page-input{padding:14px 20px;max-width:800px;margin:0 auto}
+.form-group{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-group label{font-size:11px;color:var(--text2);font-family:var(--mono)}
+.form-group select,.form-group input{
+  padding:6px 10px;border-radius:6px;border:1px solid var(--border2);
+  background:var(--bg3);color:var(--text);font-family:var(--mono);font-size:12px;outline:none
+}
+.result-card{margin-top:12px;padding:14px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;font-family:var(--mono);font-size:12px}
 </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <div class="header">
-  <div class="header-left">
-    <div class="logo">FOREX <span>FUNDAMENTAL</span></div>
-    <div class="status-pill">
-      <span class="dot" id="sdot"></span>
-      <span id="status-txt">Připojování...</span>
+  <div class="header-brand">
+    <div class="brand-name">FOREX <span>ANALYZER</span></div>
+    <div class="pair-select">
+      <select id="pair-dropdown" onchange="onPairChange()"></select>
+      <span style="color:var(--text3);font-size:10px">▼</span>
     </div>
   </div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('analyzer',this)">Analyzer</button>
+    <button class="nav-tab" onclick="showPage('pairs',this)">Major pairs</button>
+    <button class="nav-tab" onclick="showPage('input',this)">Vložit zprávu</button>
+  </div>
   <div class="header-right">
-    <span class="ts" id="ts-label"></span>
+    <span class="status-dot" id="sdot"></span>
+    <span class="status-text" id="stext">Připojování...</span>
     <button class="btn" onclick="loadAll()">↻ Refresh</button>
   </div>
 </div>
 
+<!-- PAGE: ANALYZER -->
+<div id="page-analyzer">
 <div class="main">
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('overview',this)">Přehled</button>
-    <button class="tab" onclick="showTab('pairs',this)">Všechny páry</button>
-    <button class="tab" onclick="showTab('input',this)">Vložit zprávu</button>
-  </div>
+  <div class="left-col">
 
-  <!-- OVERVIEW TAB -->
-  <div id="tab-overview">
-    <div class="ccy-grid" id="ccy-grid"></div>
-
-    <div class="row2">
-      <div class="card">
-        <div class="card-label">Vývoj skóre · <span id="pair-lbl">—</span></div>
-        <div class="detail-top">
-          <span class="detail-score neu" id="dp-score">—</span>
-          <span class="bias-badge" id="dp-badge" style="background:var(--bg3);color:var(--text2)">—</span>
-          <span class="detail-delta" id="dp-delta"></span>
+    <!-- Score History -->
+    <div class="card">
+      <div class="score-summary">
+        <div class="score-main">
+          <span class="score-big muted" id="main-score">—</span>
+          <span class="score-bias" id="main-bias" style="color:var(--text2)">— <span class="score-arrow" id="main-arrow"></span></span>
         </div>
-        <div style="position:relative;height:160px">
-          <canvas id="lineChart" role="img" aria-label="Vývoj skóre páru">Graf skóre.</canvas>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="score-24h" id="main-24h">— 24h</span>
+          <div class="time-filters">
+            <button class="tf-btn active" onclick="setTF('1W',this)">1W</button>
+            <button class="tf-btn" onclick="setTF('1M',this)">1M</button>
+            <button class="tf-btn" onclick="setTF('3M',this)">3M</button>
+            <button class="tf-btn" onclick="setTF('6M',this)">6M</button>
+          </div>
         </div>
       </div>
-      <div class="card">
-        <div class="card-label">Indikátory · <span id="indic-lbl">—</span></div>
-        <div id="indic-panel"><div class="empty">Vyberte měnu</div></div>
+      <div class="card-title" style="margin-bottom:10px">Score History</div>
+      <div class="chart-wrap">
+        <canvas id="histChart" role="img" aria-label="Score history chart">Score history.</canvas>
       </div>
     </div>
 
-    <div class="row3">
-      <div class="card">
-        <div class="card-label">Top movers · 24h</div>
-        <div id="top-movers"><div class="empty">Načítám...</div></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Nejsilnější páry</div>
-        <div id="top-bull"><div class="empty">Načítám...</div></div>
-      </div>
-      <div class="card">
-        <div class="card-label">Nejslabší páry</div>
-        <div id="top-bear"><div class="empty">Načítám...</div></div>
-      </div>
-    </div>
-
+    <!-- Currency strength -->
     <div class="card">
-      <div class="card-label">Poslední zprávy z databáze</div>
-      <div id="news-feed"><div class="empty">Načítám...</div></div>
+      <div class="card-header"><span class="card-title">Currency strength</span><span class="card-meta" id="ccy-updated"></span></div>
+      <div class="ccy-grid" id="ccy-grid"></div>
     </div>
+
+    <!-- COT -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">COT positioning</span><span class="card-meta" id="cot-pair-lbl"></span></div>
+      <div class="cot-pair" id="cot-panel"></div>
+    </div>
+
+    <!-- Rankings -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Top movers · 24h</span></div>
+        <div class="rank-list" id="rank-movers"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Strongest pairs</span></div>
+        <div class="rank-list" id="rank-bull"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Weakest pairs</span></div>
+        <div class="rank-list" id="rank-bear"></div>
+      </div>
+    </div>
+
+    <!-- News -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Recent events</span></div>
+      <div class="news-list" id="news-list"></div>
+    </div>
+
   </div>
 
-  <!-- PAIRS TAB -->
-  <div id="tab-pairs" class="section-hidden">
+  <!-- RIGHT COL -->
+  <div class="right-col">
     <div class="card">
-      <div class="card-label">Všechny měnové páry · seřazeno podle skóre</div>
-      <div style="overflow-x:auto">
-        <table class="pairs-table">
-          <thead><tr>
-            <th>Pár</th><th>Skóre</th><th>Δ24h</th><th>Bias</th><th>Akce</th>
-          </tr></thead>
-          <tbody id="pairs-tbody"></tbody>
-        </table>
+      <div class="card-header"><span class="card-title">Score Overview</span></div>
+      <div class="score-overview-list" id="score-overview"></div>
+      <div class="so-final">
+        <span class="so-final-label">Final Score</span>
+        <span class="so-final-val muted" id="final-score">—</span>
       </div>
-    </div>
-  </div>
-
-  <!-- INPUT TAB -->
-  <div id="tab-input" class="section-hidden">
-    <div class="card" style="margin-bottom:12px">
-      <div class="card-label">Manuální zadání zprávy</div>
-      <div class="form-row">
-        <label>Měna:</label>
-        <select id="inp-ccy"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option><option>AUD</option><option>NZD</option><option>CAD</option><option>CHF</option></select>
-        <label>Typ:</label>
-        <select id="inp-type" onchange="updateFields()">
-          <option value="cpi">CPI / Inflace</option>
-          <option value="gdp">GDP / HDP</option>
-          <option value="labor">Labor Market (NFP)</option>
-          <option value="mfg_pmi">Manufacturing PMI</option>
-          <option value="svc_pmi">Services PMI</option>
-          <option value="rate">Úrokové sazby</option>
-          <option value="retail">Retail Sales</option>
-          <option value="cot">COT Data</option>
-        </select>
-      </div>
-      <div class="form-row" id="std-fields">
-        <label>Actual:</label><input id="inp-actual" type="number" step="0.01" style="width:80px" placeholder="0.0">
-        <label>Forecast:</label><input id="inp-forecast" type="number" step="0.01" style="width:80px" placeholder="0.0">
-        <label>Previous:</label><input id="inp-previous" type="number" step="0.01" style="width:80px" placeholder="0.0">
-      </div>
-      <div class="form-row" id="tone-row" style="display:none">
-        <label>Tón:</label>
-        <select id="inp-tone"><option value="neutral">Neutral</option><option value="hawkish">Hawkish</option><option value="dovish">Dovish</option></select>
-      </div>
-      <div class="form-row" id="cot-row" style="display:none">
-        <label>Staré data:</label><input id="inp-cot-old" type="number" style="width:90px">
-        <label>Nové data:</label><input id="inp-cot-new" type="number" style="width:90px">
-      </div>
-      <div class="form-row">
-        <button class="btn" onclick="calcScore()">Vypočítat skóre</button>
-      </div>
-      <div class="result-box" id="calc-result" style="display:none"></div>
     </div>
   </div>
 </div>
+</div>
+
+<!-- PAGE: PAIRS -->
+<div id="page-pairs" class="hidden">
+<div style="padding:14px 20px;max-width:1500px;margin:0 auto">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Major pairs review</span></div>
+    <table class="pairs-table">
+      <thead><tr>
+        <th>Symbol</th><th>Score</th><th>24h</th><th>COT</th>
+      </tr></thead>
+      <tbody id="pairs-tbody"></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+<!-- PAGE: INPUT -->
+<div id="page-input" class="hidden">
+<div style="padding:14px 20px;max-width:700px;margin:0 auto">
+  <div class="card">
+    <div class="card-header"><span class="card-title">Vložit zprávu manuálně</span></div>
+    <div class="form-group">
+      <label>Měna:</label>
+      <select id="inp-ccy"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option><option>AUD</option><option>NZD</option><option>CAD</option><option>CHF</option></select>
+      <label>Typ:</label>
+      <select id="inp-type" onchange="updateInputFields()">
+        <option value="cpi">CPI / Inflace</option>
+        <option value="gdp">GDP</option>
+        <option value="labor">Labor Market</option>
+        <option value="mfg_pmi">Manufacturing PMI</option>
+        <option value="svc_pmi">Services PMI</option>
+        <option value="rate">Úrokové sazby</option>
+        <option value="retail">Retail Sales</option>
+        <option value="cot">COT Data</option>
+      </select>
+    </div>
+    <div class="form-group" id="std-fields">
+      <label>Actual:</label><input id="inp-actual" type="number" step="0.01" style="width:80px">
+      <label>Forecast:</label><input id="inp-forecast" type="number" step="0.01" style="width:80px">
+      <label>Previous:</label><input id="inp-previous" type="number" step="0.01" style="width:80px">
+    </div>
+    <div class="form-group hidden" id="tone-row">
+      <label>Tón:</label>
+      <select id="inp-tone"><option value="neutral">Neutral</option><option value="hawkish">Hawkish</option><option value="dovish">Dovish</option></select>
+    </div>
+    <div class="form-group hidden" id="cot-row">
+      <label>Staré data:</label><input id="inp-cot-old" type="number" style="width:90px">
+      <label>Nové data:</label><input id="inp-cot-new" type="number" style="width:90px">
+    </div>
+    <button class="btn" onclick="calcScore()" style="margin-top:6px">Vypočítat skóre</button>
+    <div class="result-card hidden" id="calc-result"></div>
+  </div>
+</div>
+</div>
 
 <script>
-const SB_URL = 'https://tmxglyzjwygknwzbwxru.supabase.co';
-const SB_KEY = 'sb_publishable__FulrYJK9-Kw8XNvEad1Gg_wpCe8Nrr';
-const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Accept':'application/json'};
-const CCYS = ['USD','EUR','GBP','JPY','AUD','NZD','CAD','CHF'];
+const SB='https://tmxglyzjwygknwzbwxru.supabase.co';
+const KEY='sb_publishable__FulrYJK9-Kw8XNvEad1Gg_wpCe8Nrr';
+const H={'apikey':KEY,'Authorization':'Bearer '+KEY,'Accept':'application/json'};
+const CCYS=['USD','EUR','GBP','JPY','AUD','NZD','CAD','CHF'];
+const PAIRS=[];
+for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++) if(i!==j) PAIRS.push(CCYS[i]+'/'+CCYS[j]);
 
-let CS = {};
-let activePair = 'EUR/USD';
-let lineChart = null;
+let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={};
 
-async function get(path){
-  const r = await fetch(SB_URL+'/rest/v1/'+path,{headers:H});
-  if(!r.ok) throw new Error(r.status+': '+await r.text());
+async function api(path){
+  const r=await fetch(SB+'/rest/v1/'+path,{headers:H});
+  if(!r.ok) throw new Error(r.status);
   return r.json();
 }
 
-function col(v){return v>0?'var(--green)':v<0?'var(--red)':'var(--neu)'}
-function fmt(v){if(v===null||v===undefined)return'—';return(v>0?'+':'')+Math.round(v*10)/10}
-function biasStyle(s){
-  if(s>=6)return['Strong Bullish','var(--green-dim)','var(--green)'];
-  if(s>=2)return['Bullish','var(--green-dim)','var(--green)'];
-  if(s<=-6)return['Strong Bearish','var(--red-dim)','var(--red)'];
-  if(s<=-2)return['Bearish','var(--red-dim)','var(--red)'];
-  return['Neutral','var(--bg3)','var(--text2)'];
+function gc(v){return v>0?'var(--green)':v<0?'var(--red)':'var(--text2)'}
+function fmt(v){if(v==null)return'—';return(v>0?'+':'')+Math.round(v*10)/10}
+function biasInfo(s){
+  if(s>=6)return['Bullish','var(--green)','↑'];
+  if(s>=2)return['Bullish','var(--green)','↑'];
+  if(s<=-6)return['Bearish','var(--red)','↓'];
+  if(s<=-2)return['Bearish','var(--red)','↓'];
+  return['Neutral','var(--text2)','—'];
 }
+function tfDays(tf){return tf==='1W'?7:tf==='1M'?30:tf==='3M'?90:180}
 
-function setStatus(state,msg){
+function setStatus(s,t){
   const d=document.getElementById('sdot');
-  d.className='dot'+(state==='ok'?' ok':state==='err'?' err':'');
-  document.getElementById('status-txt').textContent=msg;
+  d.className='status-dot'+(s==='ok'?' ok':s==='err'?' err':'');
+  document.getElementById('stext').textContent=t;
 }
 
 async function loadAll(){
   setStatus('loading','Načítám...');
   try{
-    const [scores,events]=await Promise.all([
-      get('v_current_scores?select=*&order=total_score.desc'),
-      get('event_scores?select=*,economic_events(event_name,event_datetime,currency,actual,forecast)&order=scored_at.desc&limit=20')
+    const[scores,events]=await Promise.all([
+      api('v_current_scores?select=*&order=total_score.desc'),
+      api('event_scores?select=*,economic_events(event_name,event_datetime,currency,actual,forecast)&order=scored_at.desc&limit=20')
     ]);
     CS={};
     scores.forEach(r=>CS[r.currency]=r);
+    buildPairDropdown();
     renderCurrencies(scores);
+    renderScoreOverview();
+    renderHistory();
+    renderCOT();
     renderRankings();
-    renderDetail();
     renderNews(events);
-    if(document.getElementById('tab-pairs').style.display!=='none') renderPairsTable();
-    document.getElementById('ts-label').textContent='Aktualizováno '+new Date().toLocaleTimeString('cs-CZ');
-    setStatus('ok',scores.length+' měn · live');
+    if(!document.getElementById('page-pairs').classList.contains('hidden')) renderPairsTable();
+    setStatus('ok',new Date().toLocaleTimeString('cs-CZ')+' · live');
   }catch(e){
     setStatus('err','Chyba: '+e.message);
   }
 }
 
+function buildPairDropdown(){
+  const sel=document.getElementById('pair-dropdown');
+  const cur=sel.value||activePair;
+  sel.innerHTML='';
+  for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++){
+    if(i===j) continue;
+    const p=CCYS[i]+' – '+CCYS[j];
+    const o=document.createElement('option');
+    o.value=CCYS[i]+'/'+CCYS[j];
+    o.textContent=p;
+    if(CCYS[i]+'/'+CCYS[j]===cur) o.selected=true;
+    sel.appendChild(o);
+  }
+  activePair=sel.value;
+}
+
+function onPairChange(){
+  activePair=document.getElementById('pair-dropdown').value;
+  renderScoreOverview();
+  renderHistory();
+  renderCOT();
+  document.getElementById('cot-pair-lbl').textContent=activePair;
+}
+
 function renderCurrencies(rows){
   const el=document.getElementById('ccy-grid');
-  if(!rows.length){el.innerHTML='<div class="empty" style="grid-column:1/-1">Žádná data – spusť scraper</div>';return;}
+  if(!rows.length){el.innerHTML='<div class="empty">Žádná data</div>';return;}
+  const[base]=activePair.split('/');
   el.innerHTML=rows.map(r=>{
     const d=r.delta_24h||0;
-    const [base]=activePair.split('/');
-    const c=r.total_score>0?'pos':r.total_score<0?'neg':'neu';
-    return`<div class="ccy-cell${r.currency===base?' active':''}" onclick="selectCcy('${r.currency}')">
-      <div class="ccy-name">${r.currency}</div>
-      <div class="ccy-score ${c}">${fmt(r.total_score)}</div>
-      <div class="ccy-delta" style="color:${d>=0?'var(--green)':'var(--red)'}">${d>=0?'▲':'▼'}${Math.abs(Math.round(d*10)/10)}</div>
+    const c=r.total_score>0?'g':r.total_score<0?'r':'muted';
+    return`<div class="ccy-cell${r.currency===base?' active':''}" onclick="selectBase('${r.currency}')">
+      <div class="ccy-label">${r.currency}</div>
+      <div class="ccy-val ${c}">${fmt(r.total_score)}</div>
+      <div class="ccy-delta" style="color:${gc(d)}">${d>=0?'▲':'▼'}${Math.abs(Math.round(d*10)/10)}</div>
     </div>`;
   }).join('');
 }
 
-function selectCcy(ccy){
-  const other=activePair.includes('/')?activePair.split('/').find(x=>x!==ccy)||'USD':'USD';
-  activePair=ccy+'/'+other;
-  document.querySelectorAll('.ccy-cell').forEach(el=>{
-    el.classList.toggle('active',el.querySelector('.ccy-name').textContent===ccy);
-  });
-  renderDetail();
+function selectBase(ccy){
+  const[,q]=activePair.split('/');
+  activePair=ccy+'/'+(q===ccy?CCYS.find(x=>x!==ccy):q);
+  document.getElementById('pair-dropdown').value=activePair;
+  document.querySelectorAll('.ccy-cell').forEach(el=>el.classList.toggle('active',el.querySelector('.ccy-label').textContent===ccy));
+  renderScoreOverview();
+  renderHistory();
+  renderCOT();
 }
 
-async function renderDetail(){
-  const [a,b]=activePair.split('/');
+function renderScoreOverview(){
+  const[a,b]=activePair.split('/');
   const sa=CS[a],sb=CS[b];
-  document.getElementById('pair-lbl').textContent=activePair;
-  document.getElementById('indic-lbl').textContent=activePair;
-  if(!sa||!sb){document.getElementById('dp-score').textContent='—';return;}
-  const s=Math.round((sa.total_score-sb.total_score)*10)/10;
-  const d=Math.round(((sa.delta_24h||0)-(sb.delta_24h||0))*10)/10;
-  const dEl=document.getElementById('dp-score');
-  dEl.textContent=fmt(s);
-  dEl.style.color=col(s);
-  const [bl,bbg,btx]=biasStyle(s);
-  const badge=document.getElementById('dp-badge');
-  badge.textContent=bl;badge.style.background=bbg;badge.style.color=btx;
-  document.getElementById('dp-delta').innerHTML='Δ24h: <span style="color:'+col(d)+'">'+fmt(d)+'</span>';
-  renderIndicators(a,b);
-  await renderChart(a,b);
+  const types=[['COT BIAS','score_cot'],['GDP','score_gdp'],['Inflation','score_cpi'],['Interest Rates','score_rate'],['Labor','score_labor'],['Mfg PMI','score_mfg_pmi'],['Retail Sales','score_retail'],['Svc PMI','score_svc_pmi']];
+  const el=document.getElementById('score-overview');
+  if(!sa){el.innerHTML='<div class="empty">Žádná data</div>';return;}
+  el.innerHTML=types.map(([l,k])=>{
+    const va=sa[k]??null, vb=sb?sb[k]??null:null;
+    const diff=va!=null&&vb!=null?Math.round((va-vb)*10)/10:va!=null?va:0;
+    const cls=diff>0?'pos-bg g':diff<0?'neg-bg r':'neu-bg muted';
+    return`<div class="so-row">
+      <span class="so-label">${l}</span>
+      <span class="so-val ${cls}">${diff!=null?(diff>0?'+':'')+diff:'—'}</span>
+    </div>`;
+  }).join('');
+  const[sa2,sb2]=[sa,sb];
+  if(sa2&&sb2){
+    const total=Math.round((sa2.total_score-sb2.total_score)*10)/10;
+    const fEl=document.getElementById('final-score');
+    fEl.textContent=fmt(total);
+    fEl.style.color=gc(total);
+    const d=Math.round(((sa2.delta_24h||0)-(sb2.delta_24h||0))*10)/10;
+    const[bias,bcol,barrow]=biasInfo(total);
+    document.getElementById('main-score').textContent=fmt(total);
+    document.getElementById('main-score').style.color=gc(total);
+    document.getElementById('main-bias').style.color=bcol;
+    document.getElementById('main-bias').childNodes[0].textContent=bias+' ';
+    document.getElementById('main-arrow').textContent=barrow;
+    document.getElementById('main-24h').textContent=(d>=0?'+':'')+d+' 24h';
+    document.getElementById('main-24h').style.color=gc(d);
+  }
 }
 
-function renderIndicators(a,b){
-  const sa=CS[a],sb=CS[b];
-  if(!sa){document.getElementById('indic-panel').innerHTML='<div class="empty">Žádná data</div>';return;}
-  const types=[['CPI','score_cpi'],['GDP','score_gdp'],['Labor','score_labor'],['Mfg PMI','score_mfg_pmi'],['Svc PMI','score_svc_pmi'],['Sazby','score_rate'],['Retail','score_retail'],['COT','score_cot']];
-  document.getElementById('indic-panel').innerHTML=`<table class="indic-table">
-    <tr><td></td><td style="color:var(--text2)">${a}</td><td style="color:var(--text2)">${sb?b:'—'}</td></tr>
-    ${types.map(([l,k])=>`<tr><td>${l}</td>
-      <td style="color:${col(sa[k]||0)}">${sa[k]!=null?fmt(sa[k]):'—'}</td>
-      <td style="color:${col(sb&&sb[k]||0)}">${sb&&sb[k]!=null?fmt(sb[k]):'—'}</td>
-    </tr>`).join('')}
-  </table>`;
-}
-
-async function renderChart(a,b){
-  const [ha,hb]=await Promise.all([
-    get(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=20&select=total_score,calculated_at`).then(r=>r.reverse()),
-    get(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=20&select=total_score,calculated_at`).then(r=>r.reverse())
+async function renderHistory(){
+  const[a,b]=activePair.split('/');
+  const days=tfDays(currentTF);
+  const[ha,hb]=await Promise.all([
+    api(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=${days}&select=total_score,calculated_at`).then(r=>r.reverse()),
+    api(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=${days}&select=total_score,calculated_at`).then(r=>r.reverse())
   ]);
   const len=Math.min(ha.length,hb.length);
-  const labels=ha.slice(-len).map(r=>new Date(r.calculated_at).toLocaleDateString('cs-CZ',{month:'numeric',day:'numeric'}));
+  const labels=ha.slice(-len).map(r=>{
+    const d=new Date(r.calculated_at);
+    return d.toLocaleDateString('cs-CZ',{month:'numeric',day:'numeric'});
+  });
   const diff=ha.slice(-len).map((r,i)=>Math.round((r.total_score-(hb[hb.length-len+i]?.total_score||0))*10)/10);
-  const ctx=document.getElementById('lineChart').getContext('2d');
-  if(lineChart)lineChart.destroy();
-  const isPos=diff.length&&diff[diff.length-1]>=0;
-  lineChart=new Chart(ctx,{
+  const ctx=document.getElementById('histChart').getContext('2d');
+  if(histChart)histChart.destroy();
+  histChart=new Chart(ctx,{
     type:'line',
-    data:{labels,datasets:[{label:'Skóre',data:diff,borderColor:isPos?'#1DB97A':'#E84B4B',backgroundColor:isPos?'rgba(29,185,122,.08)':'rgba(232,75,75,.08)',borderWidth:1.5,pointRadius:2,fill:true,tension:.35}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{x:{ticks:{color:'#555866',font:{size:9,family:'JetBrains Mono'}},grid:{color:'rgba(255,255,255,.04)'}},
-              y:{ticks:{color:'#555866',font:{size:9,family:'JetBrains Mono'},callback:v=>fmt(v)},grid:{color:'rgba(255,255,255,.04)'}}}}
+    data:{labels,datasets:[{
+      label:'Score',data:diff,
+      borderColor:'#f0b429',
+      backgroundColor:'rgba(240,180,41,0.06)',
+      borderWidth:2,pointRadius:3,pointBackgroundColor:'#f0b429',
+      fill:true,tension:.35
+    }]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{
+        backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
+        titleColor:'#8b8f99',bodyColor:'#e2e4e8',
+        callbacks:{label:ctx=>'Score: '+(ctx.raw>0?'+':'')+ctx.raw}
+      }},
+      scales:{
+        x:{ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}},
+        y:{ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},callback:v=>fmt(v)},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}}
+      }
+    }
+  });
+}
+
+function setTF(tf,btn){
+  currentTF=tf;
+  document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory();
+}
+
+function renderCOT(){
+  const[a,b]=activePair.split('/');
+  document.getElementById('cot-pair-lbl').textContent=activePair;
+  const panel=document.getElementById('cot-panel');
+  const sa=CS[a],sb=CS[b];
+  function cotItem(ccy, scoreVal){
+    const v=scoreVal??0;
+    const longPct=Math.round(50+v*10);
+    const shortPct=100-longPct;
+    return`<div class="cot-item">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span class="cot-title">COT · ${ccy}</span>
+        <div class="cot-legend"><span class="lg">Long</span><span class="sh">Short</span></div>
+      </div>
+      <div class="cot-canvas-wrap">
+        <canvas id="cot-${ccy}" width="90" height="90" role="img" aria-label="COT ${ccy}"></canvas>
+        <span class="cot-pct" style="color:var(--green)">${Math.min(Math.max(longPct,0),100)}%</span>
+      </div>
+    </div>`;
+  }
+  panel.innerHTML=cotItem(a,sa?.score_cot)+cotItem(b,sb?.score_cot);
+  [a,b].forEach((ccy,i)=>{
+    const s=(i===0?sa:sb)?.score_cot??0;
+    const lp=Math.min(Math.max(Math.round(50+s*10),5),95);
+    const ctx2=document.getElementById('cot-'+ccy)?.getContext('2d');
+    if(!ctx2)return;
+    if(cotCharts[ccy])cotCharts[ccy].destroy();
+    cotCharts[ccy]=new Chart(ctx2,{
+      type:'doughnut',
+      data:{datasets:[{data:[lp,100-lp],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
+      options:{cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
+    });
   });
 }
 
@@ -420,29 +548,30 @@ function getPairs(){
     if(!CS[a]||!CS[b])continue;
     const s=Math.round((CS[a].total_score-CS[b].total_score)*10)/10;
     const d=Math.round(((CS[a].delta_24h||0)-(CS[b].delta_24h||0))*10)/10;
-    pairs.push({pair:a+'/'+b,score:s,delta:d});
+    pairs.push({pair:a+'/'+b,score:s,delta:d,base:a,quote:b});
   }
   return pairs;
 }
 
-function pairRow(p){
+function rankRow(p){
   const max=15,pct=Math.min(Math.abs(p.score)/max*100,100);
-  return`<div class="pair-row" onclick="activePair='${p.pair}';renderDetail()">
-    <span class="pair-name">${p.pair}</span>
-    <div class="pair-bar-wrap"><div class="pair-bar" style="width:${pct}%;background:${col(p.score)}"></div></div>
-    <span class="pair-score" style="color:${col(p.score)}">${fmt(p.score)}</span>
-    <span class="pair-delta" style="color:${col(p.delta)}">${fmt(p.delta)}</span>
+  const col=p.score>0?'var(--green)':p.score<0?'var(--red)':'var(--text3)';
+  return`<div class="rank-row" onclick="document.getElementById('pair-dropdown').value='${p.pair}';activePair='${p.pair}';onPairChange()">
+    <span class="rank-pair">${p.pair}</span>
+    <div class="rank-bar-bg"><div class="rank-bar" style="width:${pct}%;background:${col}"></div></div>
+    <span class="rank-score" style="color:${col}">${fmt(p.score)}</span>
+    <span class="rank-delta" style="color:${p.delta>=0?'var(--green)':'var(--red)'}">${fmt(p.delta)}</span>
   </div>`;
 }
 
 function renderRankings(){
   const pairs=getPairs();
-  if(!pairs.length){['top-movers','top-bull','top-bear'].forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Nedostatek dat</div>');return;}
+  if(!pairs.length){['rank-movers','rank-bull','rank-bear'].forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Nedostatek dat</div>');return;}
   const byD=[...pairs].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
   const byS=[...pairs].sort((a,b)=>b.score-a.score);
-  document.getElementById('top-movers').innerHTML=byD.slice(0,5).map(pairRow).join('');
-  document.getElementById('top-bull').innerHTML=byS.slice(0,5).map(pairRow).join('');
-  document.getElementById('top-bear').innerHTML=byS.slice(-5).reverse().map(pairRow).join('');
+  document.getElementById('rank-movers').innerHTML=byD.slice(0,5).map(rankRow).join('');
+  document.getElementById('rank-bull').innerHTML=byS.slice(0,5).map(rankRow).join('');
+  document.getElementById('rank-bear').innerHTML=byS.slice(-5).reverse().map(rankRow).join('');
 }
 
 function renderPairsTable(){
@@ -450,47 +579,57 @@ function renderPairsTable(){
   pairs.sort((a,b)=>b.score-a.score);
   const tbody=document.getElementById('pairs-tbody');
   tbody.innerHTML=pairs.map(p=>{
-    const [bl,bbg,btx]=biasStyle(p.score);
-    return`<tr>
-      <td style="font-weight:500">${p.pair}</td>
-      <td style="color:${col(p.score)}">${fmt(p.score)}</td>
-      <td style="color:${col(p.delta)}">${fmt(p.delta)}</td>
-      <td><span style="padding:2px 8px;border-radius:12px;font-size:10px;background:${bbg};color:${btx}">${bl}</span></td>
-      <td><button class="btn" style="font-size:10px;padding:3px 8px" onclick="activePair='${p.pair}';showTab('overview',document.querySelector('.tab'));renderDetail()">Detail →</button></td>
+    const dc=p.delta>0?'up':p.delta<0?'dn':'neu';
+    const darrow=p.delta>0?'↗':p.delta<0?'↙':'—';
+    const sc=CS[p.base]?.score_cot??0;
+    const qc=CS[p.quote]?.score_cot??0;
+    return`<tr style="cursor:pointer" onclick="document.getElementById('pair-dropdown').value='${p.pair}';activePair='${p.pair}';showPage('analyzer',document.querySelector('.nav-tab'));onPairChange()">
+      <td><span class="pair-sym">${p.pair.replace('/','-')}</span></td>
+      <td class="pair-score-cell" style="color:${p.score>0?'var(--green)':p.score<0?'var(--red)':'var(--text2)'}">${fmt(p.score)}</td>
+      <td style="text-align:center"><span class="delta-pill ${dc}">${darrow} ${fmt(p.delta)}</span></td>
+      <td style="text-align:center">
+        <div style="display:flex;gap:6px;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono)">
+          <span style="color:var(--text2)">${p.base}</span>
+          <span style="color:${sc>0?'var(--green)':'var(--red)'}">●</span>
+          <span style="color:var(--text2)">${p.quote}</span>
+          <span style="color:${qc>0?'var(--green)':'var(--red)'}">●</span>
+        </div>
+      </td>
     </tr>`;
   }).join('');
 }
 
 function renderNews(events){
-  const el=document.getElementById('news-feed');
+  const el=document.getElementById('news-list');
   if(!events.length){el.innerHTML='<div class="empty">Žádné zprávy</div>';return;}
-  el.innerHTML=events.slice(0,12).map(e=>{
+  el.innerHTML=events.slice(0,10).map(e=>{
     const ev=e.economic_events||{};
     const dt=ev.event_datetime?new Date(ev.event_datetime).toLocaleString('cs-CZ',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
-    return`<div class="news-item">
+    const sc=e.score||0;
+    return`<div class="news-row">
       <span class="news-time">${dt}</span>
-      <div class="news-body">
-        <div class="news-title"><span style="color:${col(e.score)}">${ev.currency||'—'}</span> · ${(ev.event_name||'').substring(0,50)}</div>
-        <div class="news-sub">A=${ev.actual??'—'} · F=${ev.forecast??'—'} · Skóre: <span style="color:${col(e.score)}">${fmt(e.score)}</span> · ${e.bias||'—'}</div>
+      <div class="news-content">
+        <div class="news-title"><span style="color:${gc(sc)};font-family:var(--mono)">${ev.currency||'—'}</span> · ${(ev.event_name||'').substring(0,50)}</div>
+        <div class="news-sub">A=${ev.actual??'—'} · F=${ev.forecast??'—'} · <span style="color:${gc(sc)}">${sc>0?'+':''}${sc}</span> · ${e.bias||'—'}</div>
       </div>
     </div>`;
   }).join('');
 }
 
-function showTab(name,btn){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+function showPage(name,btn){
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('tab-overview').style.display=name==='overview'?'block':'none';
-  document.getElementById('tab-pairs').style.display=name==='pairs'?'block':'none';
-  document.getElementById('tab-input').style.display=name==='input'?'block':'none';
+  document.getElementById('page-analyzer').classList.toggle('hidden',name!=='analyzer');
+  document.getElementById('page-pairs').classList.toggle('hidden',name!=='pairs');
+  document.getElementById('page-input').classList.toggle('hidden',name!=='input');
   if(name==='pairs')renderPairsTable();
 }
 
-function updateFields(){
+function updateInputFields(){
   const t=document.getElementById('inp-type').value;
-  document.getElementById('std-fields').style.display=t==='cot'?'none':'flex';
-  document.getElementById('tone-row').style.display=t==='rate'?'flex':'none';
-  document.getElementById('cot-row').style.display=t==='cot'?'flex':'none';
+  document.getElementById('std-fields').classList.toggle('hidden',t==='cot');
+  document.getElementById('tone-row').classList.toggle('hidden',t!=='rate');
+  document.getElementById('cot-row').classList.toggle('hidden',t!=='cot');
 }
 
 function calcScore(){
@@ -500,62 +639,52 @@ function calcScore(){
   const f=parseFloat(document.getElementById('inp-forecast').value)||0;
   const p=parseFloat(document.getElementById('inp-previous').value)||0;
   const diff=+(a-f).toFixed(3);
-  let s=0,bias='Neutral',detail='';
-
+  let s=0,bias='Neutral';
   if(t==='cot'){
     const o=parseFloat(document.getElementById('inp-cot-old').value)||0;
     const n=parseFloat(document.getElementById('inp-cot-new').value)||0;
-    s=n>o?1:n<o?-1:0;
-    detail=`COT: ${o} → ${n}`;
-    bias=s>0?'Bullish':s<0?'Bearish':'Neutral';
+    s=n>o?1:n<o?-1:0; bias=s>0?'Bullish':s<0?'Bearish':'Neutral';
   } else if(t==='retail'||t==='cpi'){
     if(diff>=0.4&&a>p){s=2;bias='Strong Bullish';}
     else if(diff>=0.1){s=1;bias='Bullish';}
-    else if(diff>0&&a<p){s=1;bias='Bullish';}
+    else if(diff>0){s=1;bias='Bullish';}
     else if(Math.abs(diff)<0.1){s=0;bias='Neutral';}
     else if(diff>-0.4){s=-1;bias='Bearish';}
-    else if(diff<=-0.4&&a<p){s=-2;bias='Strong Bearish';}
-    else{s=-1;bias='Bearish';}
-    detail=`Actual=${a} Forecast=${f} diff=${diff>0?'+':''}${diff}`;
+    else{s=-2;bias='Strong Bearish';}
   } else if(t==='mfg_pmi'||t==='svc_pmi'){
     if(a>f&&a>p&&a>50){s=2;bias='Strong Bullish';}
     else if(a>f||a>50){s=1;bias='Bullish';}
     else if(Math.abs(diff)<=0.1){s=0;bias='Neutral';}
     else if(a<f&&a<p&&a<50){s=-2;bias='Strong Bearish';}
     else{s=-1;bias='Bearish';}
-    detail=`Actual=${a} (${a>50?'Expanze':'Kontrakce'}) Forecast=${f}`;
   } else if(t==='gdp'){
     if(diff>=0.3&&a>p){s=2;bias='Strong Bullish';}
     else if(diff>0){s=1;bias='Bullish';}
     else if(Math.abs(diff)<0.05){s=0;bias='Neutral';}
     else if(diff>-0.3){s=-1;bias='Bearish';}
     else{s=-2;bias='Strong Bearish';}
-    detail=`GDP: Actual=${a}% Forecast=${f}% diff=${diff>0?'+':''}${diff}%`;
   } else if(t==='rate'){
     const tone=document.getElementById('inp-tone').value;
     if(a>p||(a===p&&tone==='hawkish')){s=a>f?2:1;bias=s===2?'Strong Bullish':'Bullish';}
     else if(a===p&&tone==='neutral'){s=0;bias='Neutral';}
     else{s=a<f?-2:-1;bias=s===-2?'Strong Bearish':'Bearish';}
-    detail=`Sazba: ${p}% → ${a}% | Tón: ${tone}`;
   } else if(t==='labor'){
     s=diff>50?2:diff>0?1:diff>-50?-1:-2;
     bias=s===2?'Strong Bullish':s===1?'Bullish':s===-1?'Bearish':'Strong Bearish';
-    detail=`NFP: Actual=${a}k Forecast=${f}k diff=${diff>0?'+':''}${diff}k`;
   }
-
-  const [bl,bbg,btx]=biasStyle(s*2);
+  const col=s>0?'var(--green)':s<0?'var(--red)':'var(--text2)';
   const res=document.getElementById('calc-result');
-  res.style.display='block';
-  res.innerHTML=`<div style="margin-bottom:6px;color:var(--text2)">${ccy} · ${t.toUpperCase()}</div>
-    <div>${detail}</div>
-    <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
-      <span style="font-size:24px;font-weight:600;color:${col(s)}">${s>0?'+':''}${s}</span>
-      <span style="padding:3px 10px;border-radius:12px;background:${bbg};color:${btx};font-size:11px">${bl}</span>
+  res.classList.remove('hidden');
+  res.innerHTML=`<div style="color:var(--text2);margin-bottom:8px">${ccy} · ${t.toUpperCase()}</div>
+    <div style="color:var(--text2);margin-bottom:10px">A=${a} · F=${f} · diff=${diff>0?'+':''}${diff}</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-size:28px;font-weight:700;color:${col}">${s>0?'+':''}${s}</span>
+      <span style="padding:4px 12px;border-radius:20px;border:1px solid ${col};color:${col};font-size:12px">${bias}</span>
     </div>`;
 }
 
 loadAll();
-setInterval(loadAll, 5*60*1000);
+setInterval(loadAll,5*60*1000);
 </script>
 </body>
 </html>
