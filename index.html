@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forex Fundamental Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --bg2: #111318;
+    --bg3: #1a1d24;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --text2: #8a8d99;
+    --text3: #555866;
+    --green: #1DB97A;
+    --green-dim: rgba(29,185,122,0.12);
+    --red: #E84B4B;
+    --red-dim: rgba(232,75,75,0.12);
+    --amber: #F0A020;
+    --amber-dim: rgba(240,160,32,0.1);
+    --accent: #3B8AFF;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-sans); font-size: 14px; min-height: 100vh; }
+
+  /* Header */
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    background: var(--bg); position: sticky; top: 0; z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 13px; font-weight: 600; letter-spacing: .08em; color: var(--text); }
+  .logo span { color: var(--green); }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 20px; border: 1px solid var(--border2);
+    font-size: 11px; font-family: var(--font-mono); color: var(--text2);
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--amber); }
+  .dot.ok { background: var(--green); animation: pulse 2s infinite; }
+  .dot.err { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .ts { font-size: 11px; font-family: var(--font-mono); color: var(--text3); }
+  .btn {
+    padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border2);
+    background: transparent; color: var(--text); font-family: var(--font-sans);
+    font-size: 12px; cursor: pointer; transition: all .15s;
+  }
+  .btn:hover { background: var(--bg3); border-color: var(--border2); }
+
+  /* Main layout */
+  .main { padding: 20px 24px; max-width: 1400px; margin: 0 auto; }
+
+  /* Currency grid */
+  .ccy-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 8px; margin-bottom: 16px; }
+  .ccy-cell {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 10px; cursor: pointer; transition: all .15s; text-align: center;
+  }
+  .ccy-cell:hover { border-color: var(--border2); background: var(--bg3); }
+  .ccy-cell.active { border-color: var(--green); background: var(--green-dim); }
+  .ccy-name { font-size: 10px; font-family: var(--font-mono); color: var(--text2); margin-bottom: 4px; letter-spacing: .06em; }
+  .ccy-score { font-size: 22px; font-weight: 600; font-family: var(--font-mono); }
+  .ccy-delta { font-size: 10px; font-family: var(--font-mono); margin-top: 2px; }
+  .pos { color: var(--green); }
+  .neg { color: var(--red); }
+  .neu { color: var(--text3); }
+
+  /* Two column */
+  .row2 { display: grid; grid-template-columns: 1.6fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  }
+  .card-label {
+    font-size: 10px; font-family: var(--font-mono); color: var(--text3);
+    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-label span { color: var(--text2); }
+
+  /* Detail score */
+  .detail-top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .detail-score { font-size: 40px; font-weight: 600; font-family: var(--font-mono); }
+  .bias-badge {
+    padding: 3px 10px; border-radius: 20px; font-size: 11px;
+    font-family: var(--font-mono); font-weight: 500;
+  }
+  .detail-delta { font-size: 12px; font-family: var(--font-mono); color: var(--text2); }
+
+  /* Pair rows */
+  .pair-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 0;
+    border-bottom: 1px solid var(--border); cursor: pointer; transition: background .1s;
+  }
+  .pair-row:last-child { border-bottom: none; }
+  .pair-row:hover { background: var(--bg3); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
+  .pair-name { font-size: 12px; font-family: var(--font-mono); font-weight: 500; min-width: 68px; }
+  .pair-bar-wrap { flex: 1; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .pair-bar { height: 4px; border-radius: 2px; }
+  .pair-score { font-size: 12px; font-family: var(--font-mono); font-weight: 500; min-width: 30px; text-align: right; }
+  .pair-delta { font-size: 11px; font-family: var(--font-mono); min-width: 34px; text-align: right; }
+
+  /* Indicator table */
+  .indic-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+  .indic-table td { padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .indic-table tr:last-child td { border-bottom: none; }
+  .indic-table td:first-child { color: var(--text2); }
+  .indic-table td:not(:first-child) { text-align: right; }
+
+  /* News */
+  .news-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .news-item:last-child { border-bottom: none; }
+  .news-time { font-size: 10px; font-family: var(--font-mono); color: var(--text3); min-width: 80px; padding-top: 2px; }
+  .news-body { flex: 1; }
+  .news-title { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+  .news-sub { font-size: 11px; font-family: var(--font-mono); color: var(--text2); }
+
+  .empty { font-size: 12px; color: var(--text3); font-style: italic; padding: 8px 0; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab {
+    padding: 6px 16px; border-radius: 6px; border: 1px solid transparent;
+    font-size: 12px; font-family: var(--font-mono); cursor: pointer;
+    color: var(--text2); background: transparent; transition: all .15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--bg3); border-color: var(--border2); color: var(--text); }
+
+  /* Pairs full table */
+  .pairs-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+  .pairs-table th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border2); font-size: 10px; color: var(--text3); letter-spacing: .06em; font-weight: 500; }
+  .pairs-table td { padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .pairs-table tr:hover td { background: var(--bg3); }
+
+  /* Manual input */
+  .form-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .form-row label { font-size: 11px; font-family: var(--font-mono); color: var(--text2); }
+  .form-row select, .form-row input {
+    padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border2);
+    background: var(--bg3); color: var(--text); font-family: var(--font-mono);
+    font-size: 12px; outline: none;
+  }
+  .form-row select:focus, .form-row input:focus { border-color: var(--accent); }
+  .result-box {
+    margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border2);
+    font-family: var(--font-mono); font-size: 12px; color: var(--text);
+  }
+
+  .section-hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <div class="logo">FOREX <span>FUNDAMENTAL</span></div>
+    <div class="status-pill">
+      <span class="dot" id="sdot"></span>
+      <span id="status-txt">Připojování...</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="ts" id="ts-label"></span>
+    <button class="btn" onclick="loadAll()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('overview',this)">Přehled</button>
+    <button class="tab" onclick="showTab('pairs',this)">Všechny páry</button>
+    <button class="tab" onclick="showTab('input',this)">Vložit zprávu</button>
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div id="tab-overview">
+    <div class="ccy-grid" id="ccy-grid"></div>
+
+    <div class="row2">
+      <div class="card">
+        <div class="card-label">Vývoj skóre · <span id="pair-lbl">—</span></div>
+        <div class="detail-top">
+          <span class="detail-score neu" id="dp-score">—</span>
+          <span class="bias-badge" id="dp-badge" style="background:var(--bg3);color:var(--text2)">—</span>
+          <span class="detail-delta" id="dp-delta"></span>
+        </div>
+        <div style="position:relative;height:160px">
+          <canvas id="lineChart" role="img" aria-label="Vývoj skóre páru">Graf skóre.</canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-label">Indikátory · <span id="indic-lbl">—</span></div>
+        <div id="indic-panel"><div class="empty">Vyberte měnu</div></div>
+      </div>
+    </div>
+
+    <div class="row3">
+      <div class="card">
+        <div class="card-label">Top movers · 24h</div>
+        <div id="top-movers"><div class="empty">Načítám...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Nejsilnější páry</div>
+        <div id="top-bull"><div class="empty">Načítám...</div></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Nejslabší páry</div>
+        <div id="top-bear"><div class="empty">Načítám...</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Poslední zprávy z databáze</div>
+      <div id="news-feed"><div class="empty">Načítám...</div></div>
+    </div>
+  </div>
+
+  <!-- PAIRS TAB -->
+  <div id="tab-pairs" class="section-hidden">
+    <div class="card">
+      <div class="card-label">Všechny měnové páry · seřazeno podle skóre</div>
+      <div style="overflow-x:auto">
+        <table class="pairs-table">
+          <thead><tr>
+            <th>Pár</th><th>Skóre</th><th>Δ24h</th><th>Bias</th><th>Akce</th>
+          </tr></thead>
+          <tbody id="pairs-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- INPUT TAB -->
+  <div id="tab-input" class="section-hidden">
+    <div class="card" style="margin-bottom:12px">
+      <div class="card-label">Manuální zadání zprávy</div>
+      <div class="form-row">
+        <label>Měna:</label>
+        <select id="inp-ccy"><option>USD</option><option>EUR</option><option>GBP</option><option>JPY</option><option>AUD</option><option>NZD</option><option>CAD</option><option>CHF</option></select>
+        <label>Typ:</label>
+        <select id="inp-type" onchange="updateFields()">
+          <option value="cpi">CPI / Inflace</option>
+          <option value="gdp">GDP / HDP</option>
+          <option value="labor">Labor Market (NFP)</option>
+          <option value="mfg_pmi">Manufacturing PMI</option>
+          <option value="svc_pmi">Services PMI</option>
+          <option value="rate">Úrokové sazby</option>
+          <option value="retail">Retail Sales</option>
+          <option value="cot">COT Data</option>
+        </select>
+      </div>
+      <div class="form-row" id="std-fields">
+        <label>Actual:</label><input id="inp-actual" type="number" step="0.01" style="width:80px" placeholder="0.0">
+        <label>Forecast:</label><input id="inp-forecast" type="number" step="0.01" style="width:80px" placeholder="0.0">
+        <label>Previous:</label><input id="inp-previous" type="number" step="0.01" style="width:80px" placeholder="0.0">
+      </div>
+      <div class="form-row" id="tone-row" style="display:none">
+        <label>Tón:</label>
+        <select id="inp-tone"><option value="neutral">Neutral</option><option value="hawkish">Hawkish</option><option value="dovish">Dovish</option></select>
+      </div>
+      <div class="form-row" id="cot-row" style="display:none">
+        <label>Staré data:</label><input id="inp-cot-old" type="number" style="width:90px">
+        <label>Nové data:</label><input id="inp-cot-new" type="number" style="width:90px">
+      </div>
+      <div class="form-row">
+        <button class="btn" onclick="calcScore()">Vypočítat skóre</button>
+      </div>
+      <div class="result-box" id="calc-result" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const SB_URL = 'https://tmxglyzjwygknwzbwxru.supabase.co';
+const SB_KEY = 'sb_publishable__FulrYJK9-Kw8XNvEad1Gg_wpCe8Nrr';
+const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Accept':'application/json'};
+const CCYS = ['USD','EUR','GBP','JPY','AUD','NZD','CAD','CHF'];
+
+let CS = {};
+let activePair = 'EUR/USD';
+let lineChart = null;
+
+async function get(path){
+  const r = await fetch(SB_URL+'/rest/v1/'+path,{headers:H});
+  if(!r.ok) throw new Error(r.status+': '+await r.text());
+  return r.json();
+}
+
+function col(v){return v>0?'var(--green)':v<0?'var(--red)':'var(--neu)'}
+function fmt(v){if(v===null||v===undefined)return'—';return(v>0?'+':'')+Math.round(v*10)/10}
+function biasStyle(s){
+  if(s>=6)return['Strong Bullish','var(--green-dim)','var(--green)'];
+  if(s>=2)return['Bullish','var(--green-dim)','var(--green)'];
+  if(s<=-6)return['Strong Bearish','var(--red-dim)','var(--red)'];
+  if(s<=-2)return['Bearish','var(--red-dim)','var(--red)'];
+  return['Neutral','var(--bg3)','var(--text2)'];
+}
+
+function setStatus(state,msg){
+  const d=document.getElementById('sdot');
+  d.className='dot'+(state==='ok'?' ok':state==='err'?' err':'');
+  document.getElementById('status-txt').textContent=msg;
+}
+
+async function loadAll(){
+  setStatus('loading','Načítám...');
+  try{
+    const [scores,events]=await Promise.all([
+      get('v_current_scores?select=*&order=total_score.desc'),
+      get('event_scores?select=*,economic_events(event_name,event_datetime,currency,actual,forecast)&order=scored_at.desc&limit=20')
+    ]);
+    CS={};
+    scores.forEach(r=>CS[r.currency]=r);
+    renderCurrencies(scores);
+    renderRankings();
+    renderDetail();
+    renderNews(events);
+    if(document.getElementById('tab-pairs').style.display!=='none') renderPairsTable();
+    document.getElementById('ts-label').textContent='Aktualizováno '+new Date().toLocaleTimeString('cs-CZ');
+    setStatus('ok',scores.length+' měn · live');
+  }catch(e){
+    setStatus('err','Chyba: '+e.message);
+  }
+}
+
+function renderCurrencies(rows){
+  const el=document.getElementById('ccy-grid');
+  if(!rows.length){el.innerHTML='<div class="empty" style="grid-column:1/-1">Žádná data – spusť scraper</div>';return;}
+  el.innerHTML=rows.map(r=>{
+    const d=r.delta_24h||0;
+    const [base]=activePair.split('/');
+    const c=r.total_score>0?'pos':r.total_score<0?'neg':'neu';
+    return`<div class="ccy-cell${r.currency===base?' active':''}" onclick="selectCcy('${r.currency}')">
+      <div class="ccy-name">${r.currency}</div>
+      <div class="ccy-score ${c}">${fmt(r.total_score)}</div>
+      <div class="ccy-delta" style="color:${d>=0?'var(--green)':'var(--red)'}">${d>=0?'▲':'▼'}${Math.abs(Math.round(d*10)/10)}</div>
+    </div>`;
+  }).join('');
+}
+
+function selectCcy(ccy){
+  const other=activePair.includes('/')?activePair.split('/').find(x=>x!==ccy)||'USD':'USD';
+  activePair=ccy+'/'+other;
+  document.querySelectorAll('.ccy-cell').forEach(el=>{
+    el.classList.toggle('active',el.querySelector('.ccy-name').textContent===ccy);
+  });
+  renderDetail();
+}
+
+async function renderDetail(){
+  const [a,b]=activePair.split('/');
+  const sa=CS[a],sb=CS[b];
+  document.getElementById('pair-lbl').textContent=activePair;
+  document.getElementById('indic-lbl').textContent=activePair;
+  if(!sa||!sb){document.getElementById('dp-score').textContent='—';return;}
+  const s=Math.round((sa.total_score-sb.total_score)*10)/10;
+  const d=Math.round(((sa.delta_24h||0)-(sb.delta_24h||0))*10)/10;
+  const dEl=document.getElementById('dp-score');
+  dEl.textContent=fmt(s);
+  dEl.style.color=col(s);
+  const [bl,bbg,btx]=biasStyle(s);
+  const badge=document.getElementById('dp-badge');
+  badge.textContent=bl;badge.style.background=bbg;badge.style.color=btx;
+  document.getElementById('dp-delta').innerHTML='Δ24h: <span style="color:'+col(d)+'">'+fmt(d)+'</span>';
+  renderIndicators(a,b);
+  await renderChart(a,b);
+}
+
+function renderIndicators(a,b){
+  const sa=CS[a],sb=CS[b];
+  if(!sa){document.getElementById('indic-panel').innerHTML='<div class="empty">Žádná data</div>';return;}
+  const types=[['CPI','score_cpi'],['GDP','score_gdp'],['Labor','score_labor'],['Mfg PMI','score_mfg_pmi'],['Svc PMI','score_svc_pmi'],['Sazby','score_rate'],['Retail','score_retail'],['COT','score_cot']];
+  document.getElementById('indic-panel').innerHTML=`<table class="indic-table">
+    <tr><td></td><td style="color:var(--text2)">${a}</td><td style="color:var(--text2)">${sb?b:'—'}</td></tr>
+    ${types.map(([l,k])=>`<tr><td>${l}</td>
+      <td style="color:${col(sa[k]||0)}">${sa[k]!=null?fmt(sa[k]):'—'}</td>
+      <td style="color:${col(sb&&sb[k]||0)}">${sb&&sb[k]!=null?fmt(sb[k]):'—'}</td>
+    </tr>`).join('')}
+  </table>`;
+}
+
+async function renderChart(a,b){
+  const [ha,hb]=await Promise.all([
+    get(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=20&select=total_score,calculated_at`).then(r=>r.reverse()),
+    get(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=20&select=total_score,calculated_at`).then(r=>r.reverse())
+  ]);
+  const len=Math.min(ha.length,hb.length);
+  const labels=ha.slice(-len).map(r=>new Date(r.calculated_at).toLocaleDateString('cs-CZ',{month:'numeric',day:'numeric'}));
+  const diff=ha.slice(-len).map((r,i)=>Math.round((r.total_score-(hb[hb.length-len+i]?.total_score||0))*10)/10);
+  const ctx=document.getElementById('lineChart').getContext('2d');
+  if(lineChart)lineChart.destroy();
+  const isPos=diff.length&&diff[diff.length-1]>=0;
+  lineChart=new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[{label:'Skóre',data:diff,borderColor:isPos?'#1DB97A':'#E84B4B',backgroundColor:isPos?'rgba(29,185,122,.08)':'rgba(232,75,75,.08)',borderWidth:1.5,pointRadius:2,fill:true,tension:.35}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{ticks:{color:'#555866',font:{size:9,family:'JetBrains Mono'}},grid:{color:'rgba(255,255,255,.04)'}},
+              y:{ticks:{color:'#555866',font:{size:9,family:'JetBrains Mono'},callback:v=>fmt(v)},grid:{color:'rgba(255,255,255,.04)'}}}}
+  });
+}
+
+function getPairs(){
+  const pairs=[];
+  for(let i=0;i<CCYS.length;i++) for(let j=i+1;j<CCYS.length;j++){
+    const a=CCYS[i],b=CCYS[j];
+    if(!CS[a]||!CS[b])continue;
+    const s=Math.round((CS[a].total_score-CS[b].total_score)*10)/10;
+    const d=Math.round(((CS[a].delta_24h||0)-(CS[b].delta_24h||0))*10)/10;
+    pairs.push({pair:a+'/'+b,score:s,delta:d});
+  }
+  return pairs;
+}
+
+function pairRow(p){
+  const max=15,pct=Math.min(Math.abs(p.score)/max*100,100);
+  return`<div class="pair-row" onclick="activePair='${p.pair}';renderDetail()">
+    <span class="pair-name">${p.pair}</span>
+    <div class="pair-bar-wrap"><div class="pair-bar" style="width:${pct}%;background:${col(p.score)}"></div></div>
+    <span class="pair-score" style="color:${col(p.score)}">${fmt(p.score)}</span>
+    <span class="pair-delta" style="color:${col(p.delta)}">${fmt(p.delta)}</span>
+  </div>`;
+}
+
+function renderRankings(){
+  const pairs=getPairs();
+  if(!pairs.length){['top-movers','top-bull','top-bear'].forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Nedostatek dat</div>');return;}
+  const byD=[...pairs].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
+  const byS=[...pairs].sort((a,b)=>b.score-a.score);
+  document.getElementById('top-movers').innerHTML=byD.slice(0,5).map(pairRow).join('');
+  document.getElementById('top-bull').innerHTML=byS.slice(0,5).map(pairRow).join('');
+  document.getElementById('top-bear').innerHTML=byS.slice(-5).reverse().map(pairRow).join('');
+}
+
+function renderPairsTable(){
+  const pairs=getPairs();
+  pairs.sort((a,b)=>b.score-a.score);
+  const tbody=document.getElementById('pairs-tbody');
+  tbody.innerHTML=pairs.map(p=>{
+    const [bl,bbg,btx]=biasStyle(p.score);
+    return`<tr>
+      <td style="font-weight:500">${p.pair}</td>
+      <td style="color:${col(p.score)}">${fmt(p.score)}</td>
+      <td style="color:${col(p.delta)}">${fmt(p.delta)}</td>
+      <td><span style="padding:2px 8px;border-radius:12px;font-size:10px;background:${bbg};color:${btx}">${bl}</span></td>
+      <td><button class="btn" style="font-size:10px;padding:3px 8px" onclick="activePair='${p.pair}';showTab('overview',document.querySelector('.tab'));renderDetail()">Detail →</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderNews(events){
+  const el=document.getElementById('news-feed');
+  if(!events.length){el.innerHTML='<div class="empty">Žádné zprávy</div>';return;}
+  el.innerHTML=events.slice(0,12).map(e=>{
+    const ev=e.economic_events||{};
+    const dt=ev.event_datetime?new Date(ev.event_datetime).toLocaleString('cs-CZ',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
+    return`<div class="news-item">
+      <span class="news-time">${dt}</span>
+      <div class="news-body">
+        <div class="news-title"><span style="color:${col(e.score)}">${ev.currency||'—'}</span> · ${(ev.event_name||'').substring(0,50)}</div>
+        <div class="news-sub">A=${ev.actual??'—'} · F=${ev.forecast??'—'} · Skóre: <span style="color:${col(e.score)}">${fmt(e.score)}</span> · ${e.bias||'—'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function showTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-overview').style.display=name==='overview'?'block':'none';
+  document.getElementById('tab-pairs').style.display=name==='pairs'?'block':'none';
+  document.getElementById('tab-input').style.display=name==='input'?'block':'none';
+  if(name==='pairs')renderPairsTable();
+}
+
+function updateFields(){
+  const t=document.getElementById('inp-type').value;
+  document.getElementById('std-fields').style.display=t==='cot'?'none':'flex';
+  document.getElementById('tone-row').style.display=t==='rate'?'flex':'none';
+  document.getElementById('cot-row').style.display=t==='cot'?'flex':'none';
+}
+
+function calcScore(){
+  const t=document.getElementById('inp-type').value;
+  const ccy=document.getElementById('inp-ccy').value;
+  const a=parseFloat(document.getElementById('inp-actual').value)||0;
+  const f=parseFloat(document.getElementById('inp-forecast').value)||0;
+  const p=parseFloat(document.getElementById('inp-previous').value)||0;
+  const diff=+(a-f).toFixed(3);
+  let s=0,bias='Neutral',detail='';
+
+  if(t==='cot'){
+    const o=parseFloat(document.getElementById('inp-cot-old').value)||0;
+    const n=parseFloat(document.getElementById('inp-cot-new').value)||0;
+    s=n>o?1:n<o?-1:0;
+    detail=`COT: ${o} → ${n}`;
+    bias=s>0?'Bullish':s<0?'Bearish':'Neutral';
+  } else if(t==='retail'||t==='cpi'){
+    if(diff>=0.4&&a>p){s=2;bias='Strong Bullish';}
+    else if(diff>=0.1){s=1;bias='Bullish';}
+    else if(diff>0&&a<p){s=1;bias='Bullish';}
+    else if(Math.abs(diff)<0.1){s=0;bias='Neutral';}
+    else if(diff>-0.4){s=-1;bias='Bearish';}
+    else if(diff<=-0.4&&a<p){s=-2;bias='Strong Bearish';}
+    else{s=-1;bias='Bearish';}
+    detail=`Actual=${a} Forecast=${f} diff=${diff>0?'+':''}${diff}`;
+  } else if(t==='mfg_pmi'||t==='svc_pmi'){
+    if(a>f&&a>p&&a>50){s=2;bias='Strong Bullish';}
+    else if(a>f||a>50){s=1;bias='Bullish';}
+    else if(Math.abs(diff)<=0.1){s=0;bias='Neutral';}
+    else if(a<f&&a<p&&a<50){s=-2;bias='Strong Bearish';}
+    else{s=-1;bias='Bearish';}
+    detail=`Actual=${a} (${a>50?'Expanze':'Kontrakce'}) Forecast=${f}`;
+  } else if(t==='gdp'){
+    if(diff>=0.3&&a>p){s=2;bias='Strong Bullish';}
+    else if(diff>0){s=1;bias='Bullish';}
+    else if(Math.abs(diff)<0.05){s=0;bias='Neutral';}
+    else if(diff>-0.3){s=-1;bias='Bearish';}
+    else{s=-2;bias='Strong Bearish';}
+    detail=`GDP: Actual=${a}% Forecast=${f}% diff=${diff>0?'+':''}${diff}%`;
+  } else if(t==='rate'){
+    const tone=document.getElementById('inp-tone').value;
+    if(a>p||(a===p&&tone==='hawkish')){s=a>f?2:1;bias=s===2?'Strong Bullish':'Bullish';}
+    else if(a===p&&tone==='neutral'){s=0;bias='Neutral';}
+    else{s=a<f?-2:-1;bias=s===-2?'Strong Bearish':'Bearish';}
+    detail=`Sazba: ${p}% → ${a}% | Tón: ${tone}`;
+  } else if(t==='labor'){
+    s=diff>50?2:diff>0?1:diff>-50?-1:-2;
+    bias=s===2?'Strong Bullish':s===1?'Bullish':s===-1?'Bearish':'Strong Bearish';
+    detail=`NFP: Actual=${a}k Forecast=${f}k diff=${diff>0?'+':''}${diff}k`;
+  }
+
+  const [bl,bbg,btx]=biasStyle(s*2);
+  const res=document.getElementById('calc-result');
+  res.style.display='block';
+  res.innerHTML=`<div style="margin-bottom:6px;color:var(--text2)">${ccy} · ${t.toUpperCase()}</div>
+    <div>${detail}</div>
+    <div style="margin-top:8px;display:flex;align-items:center;gap:10px">
+      <span style="font-size:24px;font-weight:600;color:${col(s)}">${s>0?'+':''}${s}</span>
+      <span style="padding:3px 10px;border-radius:12px;background:${bbg};color:${btx};font-size:11px">${bl}</span>
+    </div>`;
+}
+
+loadAll();
+setInterval(loadAll, 5*60*1000);
+</script>
+</body>
+</html>
