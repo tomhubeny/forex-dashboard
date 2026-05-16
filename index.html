@@ -442,8 +442,15 @@ async function loadSeasonality(){
 
 function injectSeasonalScore(){
   const now=new Date();
-  const startOfYear=new Date(now.getFullYear(),0,1);
-  const curWeek=Math.ceil(((now-startOfYear)/86400000+startOfYear.getDay()+1)/7);
+  // ISO week number - správný výpočet
+  const getISOWeek=(d)=>{
+    const date=new Date(d);
+    date.setHours(0,0,0,0);
+    date.setDate(date.getDate()+3-(date.getDay()+6)%7);
+    const week1=new Date(date.getFullYear(),0,4);
+    return 1+Math.round(((date-week1)/86400000-3+(week1.getDay()+6)%7)/7);
+  };
+  const curWeek=getISOWeek(now);
   const curMonth=now.getMonth()+1;
 
   Object.keys(CS).forEach(ccy=>{
@@ -500,8 +507,15 @@ function renderSeasonality(){
   }
 
   const now=new Date();
-  const startOfYear=new Date(now.getFullYear(),0,1);
-  const curWeek=Math.ceil(((now-startOfYear)/86400000+startOfYear.getDay()+1)/7);
+  // ISO week number - správný výpočet
+  const getISOWeek=(d)=>{
+    const date=new Date(d);
+    date.setHours(0,0,0,0);
+    date.setDate(date.getDate()+3-(date.getDay()+6)%7);
+    const week1=new Date(date.getFullYear(),0,4);
+    return 1+Math.round(((date-week1)/86400000-3+(week1.getDay()+6)%7)/7);
+  };
+  const curWeek=getISOWeek(now);
   const curMonth=now.getMonth()+1;
   const MFULL=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -610,8 +624,14 @@ function renderScoreOverview(){
 
   // Seasonality přímo pro pár z SEAS_DATA - použij aktuální TF (stejný jako graf)
   const curMonth=new Date().getMonth()+1;
-  const startOfYear2=new Date(now.getFullYear(),0,1);
-  const curWeek2=Math.ceil(((now-startOfYear2)/86400000+startOfYear2.getDay()+1)/7);
+  const getISOWeek2=(d)=>{
+    const date=new Date(d);
+    date.setHours(0,0,0,0);
+    date.setDate(date.getDate()+3-(date.getDay()+6)%7);
+    const week1=new Date(date.getFullYear(),0,4);
+    return 1+Math.round(((date-week1)/86400000-3+(week1.getDay()+6)%7)/7);
+  };
+  const curWeek2=getISOWeek2(now);
   const isWeekly2=SEAS_DATA[pairKey]&&SEAS_DATA[pairKey].filter(Boolean).length>15;
   const seasIdx=isWeekly2?curWeek2:curMonth;
   const seasRow=SEAS_DATA[pairKey]?.[seasIdx]??null;
