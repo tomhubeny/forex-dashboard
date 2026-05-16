@@ -155,6 +155,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .hidden{display:none}
 .empty{font-size:12px;color:var(--text3);padding:8px 0;font-style:italic}
 
+/* ── Seasonality bar chart ── */
+.seas-wrap{margin-top:10px}
+.seas-bars{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;height:52px;align-items:flex-end}
+.seas-bar-col{display:flex;flex-direction:column;align-items:center;gap:2px}
+.seas-bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height .3s}
+.seas-bar.neg{border-radius:0 0 2px 2px}
+.seas-label{font-size:8px;font-family:var(--mono);color:var(--text3)}
+.seas-month-active .seas-label{color:var(--gold)}
+.seas-month-active .seas-bar{opacity:1!important;outline:1px solid var(--gold)}
+.seas-legend{display:flex;gap:12px;margin-top:6px;justify-content:flex-end}
+.seas-legend span{font-size:9px;font-family:var(--mono);color:var(--text2);display:flex;align-items:center;gap:4px}
+.seas-legend span::before{content:'';width:8px;height:3px;border-radius:1px}
+.seas-legend .sl-5y::before{background:#3b82f6}
+.seas-legend .sl-10y::before{background:#f0b429}
+.seas-legend .sl-15y::before{background:#8b5cf6}
+
+/* ── Currency Events ── */
+.cevt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cevt-col{}
+.cevt-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.cevt-ccy{font-size:13px;font-weight:600;font-family:var(--mono)}
+.cevt-item{display:flex;flex-direction:column;gap:3px;padding:8px 0;border-bottom:1px solid var(--border)}
+.cevt-item:last-child{border-bottom:none}
+.cevt-item:hover{background:var(--bg3);margin:0 -8px;padding:8px 8px;border-radius:6px}
+.cevt-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cevt-name{font-size:12px;font-weight:500;color:var(--text);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cevt-bottom{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.cevt-date{font-size:10px;font-family:var(--mono);color:var(--text3)}
+.cevt-vals{font-size:10px;font-family:var(--mono);color:var(--text2)}
+.cevt-more{width:100%;margin-top:8px;padding:6px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all .15s;text-align:center}
+.cevt-more:hover{background:var(--bg3);color:var(--text)}
+
 /* Pages tabs */
 #page-pairs .main-full{padding:14px 20px;max-width:1500px;margin:0 auto}
 #page-input{padding:14px 20px;max-width:800px;margin:0 auto}
@@ -228,6 +260,39 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div class="card">
       <div class="card-header"><span class="card-title">COT positioning</span><span class="card-meta" id="cot-pair-lbl"></span></div>
       <div class="cot-pair" id="cot-panel"></div>
+    </div>
+
+    <!-- Retail Sentiment -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Retail Sentiment · Myfxbook</span><span class="card-meta" id="retail-pair-lbl"></span></div>
+      <div style="display:flex;justify-content:center" id="retail-panel"></div>
+    </div>
+
+    <!-- Seasonality -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Seasonality</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="card-meta" id="seas-pair-lbl"></span>
+          <div style="display:flex;gap:3px">
+            <button class="tf-btn active" id="seas-5y"  onclick="setSeasTF(5,this)">5Y</button>
+            <button class="tf-btn"        id="seas-10y" onclick="setSeasTF(10,this)">10Y</button>
+            <button class="tf-btn"        id="seas-15y" onclick="setSeasTF(15,this)">15Y</button>
+          </div>
+        </div>
+      </div>
+      <div id="seas-panel">
+        <div class="empty">Načítám seasonality data...</div>
+      </div>
+    </div>
+
+    <!-- Currency Events -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Currency Events</span>
+        <span class="card-meta" id="cevt-pair-lbl"></span>
+      </div>
+      <div class="cevt-grid" id="cevt-panel"></div>
     </div>
 
     <!-- Rankings -->
@@ -330,7 +395,9 @@ const CCYS=['USD','EUR','GBP','JPY','AUD','NZD','CAD','CHF'];
 const PAIRS=[];
 for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++) if(i!==j) PAIRS.push(CCYS[i]+'/'+CCYS[j]);
 
-let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={};
+let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={}, seasChart=null;
+let SEAS_DATA={}, currentSeasTF=5;
+let historyMode=false, historyDate=null, CS_LIVE={};
 
 async function api(path){
   const r=await fetch(SB+'/rest/v1/'+path,{headers:H});
@@ -355,6 +422,322 @@ function setStatus(s,t){
   document.getElementById('stext').textContent=t;
 }
 
+async function loadSeasonality(){
+  // Stáhni všechna seasonality data najednou
+  try{
+    const rows=await api('seasonality_data?select=pair,month,avg_5y,avg_10y,avg_15y,bullish_pct_10y&order=pair.asc,month.asc');
+    SEAS_DATA={};
+    rows.forEach(r=>{
+      if(!SEAS_DATA[r.pair]) SEAS_DATA[r.pair]=[];
+      SEAS_DATA[r.pair][r.month]=r;
+    });
+    // Přidej seasonality skóre do CS pro Score Overview
+    injectSeasonalScore();
+  }catch(e){
+    console.warn('Seasonality data nedostupná:',e);
+  }
+}
+
+function injectSeasonalScore(){
+  // Pro každou měnu sečti sezónní skóre z párů kde je base měna
+  const now=new Date();
+  const month=now.getMonth()+1;
+  Object.keys(CS).forEach(ccy=>{
+    // Najdi páry kde je tato měna base a průměruj skóre
+    let scores=[];
+    const MAJOR_BASE={'EUR':['EURUSD','EURGBP','EURJPY','EURCHF','EURAUD','EURCAD','EURNZD'],
+      'GBP':['GBPUSD','GBPJPY','GBPCHF','GBPAUD','GBPCAD','GBPNZD'],
+      'USD':['EURUSD','GBPUSD','AUDUSD','NZDUSD','USDJPY','USDCHF','USDCAD'],
+      'JPY':['USDJPY','EURJPY','GBPJPY','AUDJPY','CADJPY','CHFJPY','NZDJPY'],
+      'AUD':['AUDUSD','AUDCAD','AUDCHF','AUDNZD','AUDJPY','EURAUD','GBPAUD'],
+      'CAD':['USDCAD','EURCAD','GBPCAD','AUDCAD','NZDCAD','CADCHF','CADJPY'],
+      'NZD':['NZDUSD','EURNZD','GBPNZD','AUDNZD','NZDCAD','NZDCHF','NZDJPY'],
+      'CHF':['USDCHF','EURCHF','GBPCHF','AUDCHF','CADCHF','NZDCHF','CHFJPY'],
+    };
+    const pairs=MAJOR_BASE[ccy]||[];
+    pairs.forEach(p=>{
+      const d=SEAS_DATA[p]?.[month];
+      if(!d) return;
+      // Pokud je mena quote v paru, invertuj skóre
+      const isBase=p.startsWith(ccy);
+      const avg=isBase?d.avg_10y:-d.avg_10y;
+      const sc=avg>0.2?1:avg<-0.2?-1:0;
+      scores.push(sc);
+    });
+    if(scores.length){
+      const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
+      CS[ccy].score_seasonal=Math.round(avg);
+    }else{
+      CS[ccy].score_seasonal=null;
+    }
+  });
+}
+
+function setSeasTF(y,btn){
+  currentSeasTF=y;
+  document.querySelectorAll('#seas-5y,#seas-10y,#seas-15y').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSeasonality();
+}
+
+function renderSeasonality(){
+  const[a,b]=activePair.split('/');
+  const pairKey=(a+b).toUpperCase();
+  const panel=document.getElementById('seas-panel');
+  const lbl=document.getElementById('seas-pair-lbl');
+  if(lbl) lbl.textContent=activePair;
+  if(!panel) return;
+
+  const data=SEAS_DATA[pairKey];
+  if(!data||data.filter(Boolean).length===0){
+    panel.innerHTML=`<div class="empty">Žádná data – spusť seasonality.py</div>`;
+    return;
+  }
+
+  const now=new Date();
+  const curMonth=now.getMonth()+1;
+  const MFULL=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const key=currentSeasTF===5?'avg_5y':currentSeasTF===10?'avg_10y':'avg_15y';
+  const vals=[];
+  for(let m=1;m<=12;m++) vals.push(data[m]?.[key]??0);
+
+  const curVal=vals[curMonth-1];
+  const curScore=curVal>0.2?'+1':curVal<-0.2?'-1':'0';
+  const curCol=curVal>0.3?'var(--green)':curVal<-0.3?'var(--red)':'var(--text2)';
+  const bullPct=data[curMonth]?.bullish_pct_10y??50;
+
+  // Destroy old chart before innerHTML reset
+  if(window.seasChart){ window.seasChart.destroy(); window.seasChart=null; seasChart=null; }
+
+  panel.innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:11px;color:var(--text2);font-family:var(--mono)">${MFULL[curMonth]} avg:</span>
+        <span style="font-size:16px;font-weight:600;font-family:var(--mono);color:${curCol}">${curVal>0?'+':''}${curVal.toFixed(3)}%</span>
+        <span style="padding:2px 8px;border-radius:4px;border:1px solid ${curCol};color:${curCol};font-size:11px;font-family:var(--mono)">Score ${curScore}</span>
+      </div>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">Bull ${bullPct}% · ${currentSeasTF}Y avg</span>
+    </div>
+    <div style="position:relative;height:130px">
+      <canvas id="seasChart"></canvas>
+    </div>`;
+
+  const ctx=document.getElementById('seasChart').getContext('2d');
+
+  // Gradient fill
+  const grad=ctx.createLinearGradient(0,0,0,130);
+  grad.addColorStop(0,'rgba(59,130,246,0.25)');
+  grad.addColorStop(1,'rgba(59,130,246,0.02)');
+
+  // Zvýrazni aktuální měsíc modrým bodem
+  const pointBg=vals.map((_,i)=>i===curMonth-1?'#3b82f6':'rgba(59,130,246,0.5)');
+  const pointR=vals.map((_,i)=>i===curMonth-1?6:3);
+  const pointBorder=vals.map((_,i)=>i===curMonth-1?'#fff':'rgba(59,130,246,0.8)');
+  const pointBW=vals.map((_,i)=>i===curMonth-1?2:0);
+
+  window.seasChart=seasChart=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:MFULL.slice(1),
+      datasets:[{
+        data:vals,
+        borderColor:'#3b82f6',
+        backgroundColor:grad,
+        borderWidth:2,
+        pointRadius:pointR,
+        pointBackgroundColor:pointBg,
+        pointBorderColor:pointBorder,
+        pointBorderWidth:pointBW,
+        fill:true,
+        tension:0.4
+      }]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
+          titleColor:'#8b8f99',bodyColor:'#e2e4e8',
+          callbacks:{
+            label:c=>`Avg: ${c.raw>0?'+':''}${c.raw.toFixed(3)}%`,
+            afterLabel:c=>{
+              const m=c.dataIndex+1;
+              const bp=data[m]?.bullish_pct_10y??50;
+              return `Bull: ${bp}%`;
+            }
+          }
+        }
+      },
+      scales:{
+        x:{
+          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'}},
+          grid:{color:'rgba(255,255,255,0.04)'},
+          border:{color:'transparent'}
+        },
+        y:{
+          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},callback:v=>(v>0?'+':'')+v.toFixed(2)+'%'},
+          grid:{color:'rgba(255,255,255,0.04)'},
+          border:{color:'transparent'}
+        }
+      }
+    }
+  });
+}
+
+
+// Globální stav pro Currency Events
+const CEVT_LIMIT = {a: 10, b: 10};
+
+async function renderCurrencyEvents() {
+  const [a, b] = activePair.split('/');
+  const panel = document.getElementById('cevt-panel');
+  const lbl = document.getElementById('cevt-pair-lbl');
+  if (!panel) return;
+  if (lbl) lbl.textContent = activePair;
+
+  // Reset limitů při změně páru
+  CEVT_LIMIT.a = 10;
+  CEVT_LIMIT.b = 10;
+
+  async function fetchEvents(ccy, limit) {
+    try {
+      return await api(
+        `event_scores?select=score,bias,detail,scored_at,economic_events(event_name,event_datetime,currency,actual,forecast,event_type)` +
+        `&economic_events.currency=eq.${ccy}` +
+        `&order=scored_at.desc&limit=${limit}` +
+        `&economic_events.event_type=neq.retail&economic_events.event_type=neq.cot`
+      );
+    } catch(e) { return []; }
+  }
+
+  async function fetchEventsForCcy(ccy, limit) {
+    try {
+      // Nejprve získej event IDs pro danou měnu
+      const events = await api(
+        `economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type`
+      );
+      if (!events.length) return [];
+      const ids = events.map(e => e.id).join(',');
+      const scores = await api(
+        `event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`
+      );
+      const scoreMap = {};
+      scores.forEach(s => scoreMap[s.event_id] = s);
+      return events.map(e => ({...e, ...scoreMap[e.id]}));
+    } catch(e) { return []; }
+  }
+
+  function evtItem(ev) {
+    const sc = ev.score ?? 0;
+    const col = sc > 0 ? 'var(--green)' : sc < 0 ? 'var(--red)' : 'var(--text2)';
+    const bias = ev.bias || '';
+    const dt = ev.event_datetime
+      ? new Date(ev.event_datetime).toLocaleString('cs-CZ', {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})
+      : '—';
+    const name = (ev.event_name || '').replace(/Myfxbook Sentiment .*/,'').substring(0, 45);
+    const a = ev.actual != null ? ev.actual : '—';
+    const f = ev.forecast != null ? ev.forecast : '—';
+    const type = ev.event_type ? `<span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase">${ev.event_type}</span>` : '';
+    return `<div class="cevt-item">
+      <div class="cevt-top">
+        <span class="cevt-name" title="${ev.event_name || ''}">${name}</span>
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${col}">${sc > 0 ? '+' : ''}${sc}</span>
+      </div>
+      <div class="cevt-bottom">
+        <span class="cevt-date">${dt}</span>
+        ${type}
+        <span class="cevt-vals">A=${a} · F=${f}</span>
+        ${bias ? `<span style="font-size:10px;font-family:var(--mono);color:${col}">${bias}</span>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function colHtml(ccy, events, limitKey) {
+    const score = CS[ccy]?.total_score ?? null;
+    const scCol = score != null ? gc(score) : 'var(--text2)';
+    const header = `<div class="cevt-header">
+      <span class="cevt-ccy" style="color:${scCol}">${ccy}</span>
+      ${score != null ? `<span style="font-size:11px;font-family:var(--mono);color:${scCol};padding:2px 8px;border-radius:4px;background:var(--bg3)">${fmt(score)}</span>` : ''}
+    </div>`;
+    if (!events.length) {
+      return `<div class="cevt-col">${header}<div class="empty">Žádné záznamy</div></div>`;
+    }
+    const items = events.map(evtItem).join('');
+    const moreBtn = `<button class="cevt-more" onclick="loadMoreEvents('${ccy}','${limitKey}')">↓ Zobrazit více</button>`;
+    return `<div class="cevt-col" id="cevt-col-${ccy}">${header}${items}${moreBtn}</div>`;
+  }
+
+  panel.innerHTML = `<div class="empty" style="grid-column:1/-1">Načítám...</div>`;
+
+  const [ea, eb] = await Promise.all([
+    fetchEventsForCcy(a, CEVT_LIMIT.a),
+    fetchEventsForCcy(b, CEVT_LIMIT.b)
+  ]);
+
+  panel.innerHTML = colHtml(a, ea, 'a') + colHtml(b, eb, 'b');
+}
+
+async function loadMoreEvents(ccy, limitKey) {
+  CEVT_LIMIT[limitKey] += 10;
+  const limit = CEVT_LIMIT[limitKey];
+
+  async function fetchEventsForCcy(ccy, limit) {
+    try {
+      const events = await api(
+        `economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type`
+      );
+      if (!events.length) return [];
+      const ids = events.map(e => e.id).join(',');
+      const scores = await api(
+        `event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`
+      );
+      const scoreMap = {};
+      scores.forEach(s => scoreMap[s.event_id] = s);
+      return events.map(e => ({...e, ...scoreMap[e.id]}));
+    } catch(e) { return []; }
+  }
+
+  function evtItem(ev) {
+    const sc = ev.score ?? 0;
+    const col = sc > 0 ? 'var(--green)' : sc < 0 ? 'var(--red)' : 'var(--text2)';
+    const bias = ev.bias || '';
+    const dt = ev.event_datetime
+      ? new Date(ev.event_datetime).toLocaleString('cs-CZ', {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})
+      : '—';
+    const name = (ev.event_name || '').replace(/Myfxbook Sentiment .*/,'').substring(0, 45);
+    const a = ev.actual != null ? ev.actual : '—';
+    const f = ev.forecast != null ? ev.forecast : '—';
+    const type = ev.event_type ? `<span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase">${ev.event_type}</span>` : '';
+    return `<div class="cevt-item">
+      <div class="cevt-top">
+        <span class="cevt-name" title="${ev.event_name || ''}">${name}</span>
+        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${col}">${sc > 0 ? '+' : ''}${sc}</span>
+      </div>
+      <div class="cevt-bottom">
+        <span class="cevt-date">${dt}</span>
+        ${type}
+        <span class="cevt-vals">A=${a} · F=${f}</span>
+        ${bias ? `<span style="font-size:10px;font-family:var(--mono);color:${col}">${bias}</span>` : ''}
+      </div>
+    </div>`;
+  }
+
+  const events = await fetchEventsForCcy(ccy, limit);
+  const col = document.getElementById(`cevt-col-${ccy}`);
+  if (!col) return;
+  const score = CS[ccy]?.total_score ?? null;
+  const scCol = score != null ? gc(score) : 'var(--text2)';
+  const header = `<div class="cevt-header">
+    <span class="cevt-ccy" style="color:${scCol}">${ccy}</span>
+    ${score != null ? `<span style="font-size:11px;font-family:var(--mono);color:${scCol};padding:2px 8px;border-radius:4px;background:var(--bg3)">${fmt(score)}</span>` : ''}
+  </div>`;
+  const items = events.map(evtItem).join('');
+  const moreBtn = `<button class="cevt-more" onclick="loadMoreEvents('${ccy}','${limitKey}')">↓ Zobrazit více</button>`;
+  col.innerHTML = header + items + moreBtn;
+}
+
 async function loadAll(){
   setStatus('loading','Načítám...');
   try{
@@ -364,6 +747,7 @@ async function loadAll(){
     ]);
     CS={};
     scores.forEach(r=>CS[r.currency]=r);
+    await loadSeasonality();
     buildPairDropdown();
     renderCurrencies(scores);
     renderScoreOverview();
@@ -371,6 +755,9 @@ async function loadAll(){
     renderCOT();
     renderRankings();
     renderNews(events);
+    renderRetailSentiment();
+    renderSeasonality();
+    renderCurrencyEvents();
     if(!document.getElementById('page-pairs').classList.contains('hidden')) renderPairsTable();
     setStatus('ok',new Date().toLocaleTimeString('cs-CZ')+' · live');
   }catch(e){
@@ -381,17 +768,19 @@ async function loadAll(){
 function buildPairDropdown(){
   const sel=document.getElementById('pair-dropdown');
   const cur=sel.value||activePair;
+  const majorPairs=['EUR/USD','GBP/USD','USD/JPY','USD/CHF','AUD/USD','USD/CAD','NZD/USD',
+    'EUR/GBP','EUR/JPY','GBP/JPY','EUR/CHF','EUR/AUD','EUR/CAD','EUR/NZD',
+    'GBP/CHF','GBP/AUD','GBP/CAD','GBP/NZD','AUD/JPY','CAD/JPY','CHF/JPY','NZD/JPY',
+    'AUD/CAD','AUD/CHF','AUD/NZD','CAD/CHF','NZD/CAD','NZD/CHF'];
   sel.innerHTML='';
-  for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++){
-    if(i===j) continue;
-    const p=CCYS[i]+' – '+CCYS[j];
+  majorPairs.forEach(p=>{
+    const[a,b]=p.split('/');
     const o=document.createElement('option');
-    o.value=CCYS[i]+'/'+CCYS[j];
-    o.textContent=p;
-    if(CCYS[i]+'/'+CCYS[j]===cur) o.selected=true;
+    o.value=p; o.textContent=a+' – '+b;
+    if(p===cur) o.selected=true;
     sel.appendChild(o);
-  }
-  activePair=sel.value;
+  });
+  activePair=sel.value||majorPairs[0];
 }
 
 function onPairChange(){
@@ -399,6 +788,9 @@ function onPairChange(){
   renderScoreOverview();
   renderHistory();
   renderCOT();
+  renderRetailSentiment();
+  renderSeasonality();
+  renderCurrencyEvents();
   document.getElementById('cot-pair-lbl').textContent=activePair;
 }
 
@@ -425,30 +817,80 @@ function selectBase(ccy){
   renderScoreOverview();
   renderHistory();
   renderCOT();
+  renderRetailSentiment();
+  renderSeasonality();
+  renderCurrencyEvents();
 }
 
 function renderScoreOverview(){
   const[a,b]=activePair.split('/');
   const sa=CS[a],sb=CS[b];
-  const types=[['COT BIAS','score_cot'],['GDP','score_gdp'],['Inflation','score_cpi'],['Interest Rates','score_rate'],['Labor','score_labor'],['Mfg PMI','score_mfg_pmi'],['Retail Sales','score_retail'],['Svc PMI','score_svc_pmi']];
+  const pairKey=(a+b).toUpperCase();
+
+  // Seasonality přímo pro pár z SEAS_DATA
+  const curMonth=new Date().getMonth()+1;
+  const seasVal=SEAS_DATA[pairKey]?.[curMonth]?.avg_10y??null;
+  const seasScore=seasVal!=null?(seasVal>0.2?1:seasVal<-0.2?-1:0):null;
+
+  const types=[
+    ['COT Bias',      'score_cot'],
+    ['GDP',           'score_gdp'],
+    ['Inflation',     'score_cpi'],
+    ['Interest Rates','score_rate'],
+    ['Labor',         'score_labor'],
+    ['Labor Claims',  'score_labor_claims'],
+    ['Mfg PMI',       'score_mfg_pmi'],
+    ['Svc PMI',       'score_svc_pmi'],
+    ['Retail Sales',  'score_retail'],
+    ['Industrial',    'score_industrial'],
+    ['Seasonality',   '_seasonal_pair'],
+  ];
   const el=document.getElementById('score-overview');
   if(!sa){el.innerHTML='<div class="empty">Žádná data</div>';return;}
+
   el.innerHTML=types.map(([l,k])=>{
-    const va=sa[k]??null, vb=sb?sb[k]??null:null;
-    const diff=va!=null&&vb!=null?Math.round((va-vb)*10)/10:va!=null?va:0;
-    const cls=diff>0?'pos-bg g':diff<0?'neg-bg r':'neu-bg muted';
+    let display, cls;
+
+    if(k==='_seasonal_pair'){
+      // Seasonality přímo pro pár
+      if(seasScore!=null){
+        display=(seasScore>0?'+':'')+seasScore;
+        cls=seasScore>0?'pos-bg g':seasScore<0?'neg-bg r':'neu-bg muted';
+      } else {
+        display='—'; cls='neu-bg muted';
+      }
+    } else {
+      const va=sa[k]??null;
+      const vb=sb?sb[k]??null:null;
+
+      if(va!=null && vb!=null){
+        const diff=Math.round((va-vb)*10)/10;
+        display=(diff>0?'+':'')+diff;
+        cls=diff>0?'pos-bg g':diff<0?'neg-bg r':'neu-bg muted';
+      } else if(va!=null){
+        display=(va>0?'+':'')+va;
+        cls=va>0?'pos-bg g':va<0?'neg-bg r':'neu-bg muted';
+      } else if(vb!=null){
+        const inv=Math.round(-vb*10)/10;
+        display=(inv>0?'+':'')+inv;
+        cls=inv>0?'pos-bg g':inv<0?'neg-bg r':'neu-bg muted';
+      } else {
+        display='—'; cls='neu-bg muted';
+      }
+    }
+
     return`<div class="so-row">
       <span class="so-label">${l}</span>
-      <span class="so-val ${cls}">${diff!=null?(diff>0?'+':'')+diff:'—'}</span>
+      <span class="so-val ${cls}">${display}</span>
     </div>`;
   }).join('');
-  const[sa2,sb2]=[sa,sb];
-  if(sa2&&sb2){
-    const total=Math.round((sa2.total_score-sb2.total_score)*10)/10;
+
+  if(sa&&sb){
+    const total=Math.round((sa.total_score-sb.total_score)*10)/10;
     const fEl=document.getElementById('final-score');
     fEl.textContent=fmt(total);
     fEl.style.color=gc(total);
-    const d=Math.round(((sa2.delta_24h||0)-(sb2.delta_24h||0))*10)/10;
+    const d=Math.round(((sa.delta_24h||0)-(sb.delta_24h||0))*10)/10;
     const[bias,bcol,barrow]=biasInfo(total);
     document.getElementById('main-score').textContent=fmt(total);
     document.getElementById('main-score').style.color=gc(total);
@@ -460,19 +902,96 @@ function renderScoreOverview(){
   }
 }
 
+async function renderRetailSentiment(){
+  const[a,b]=activePair.split('/');
+  const pairSymbol=(a+b).toUpperCase(); // napr. "EURUSD"
+  document.getElementById('retail-pair-lbl').textContent=activePair;
+  const panel=document.getElementById('retail-panel');
+  if(!panel) return;
+
+  // Stáhni data přímo pro konkrétní pár z Myfxbook (event_name obsahuje symbol)
+  async function getRetailForPair(symbol){
+    try{
+      const rows=await api(
+        `economic_events?event_type=eq.retail&event_name=ilike.*${symbol}*&order=event_datetime.desc&limit=1&select=actual,forecast,event_name,event_datetime`
+      );
+      if(rows.length){
+        const r=rows[0];
+        return{ longPct: r.actual??50, shortPct: r.forecast??50, name: r.event_name||'', dt: r.event_datetime };
+      }
+    }catch(e){}
+    return null;
+  }
+
+  const d=await getRetailForPair(pairSymbol);
+
+  if(!d){
+    // Zobraz prázdný stav
+    panel.innerHTML=`<div style="grid-column:1/-1;text-align:center;padding:20px 0;font-size:12px;color:var(--text3);font-style:italic">
+      Žádná data pro ${activePair} – spusť myfxbook_scraper.py
+    </div>`;
+    return;
+  }
+
+  const signalCol = d.longPct > 60 ? 'var(--red)' : d.longPct < 40 ? 'var(--green)' : 'var(--text2)';
+  const signal    = d.longPct > 60 ? 'Contrarian ↓' : d.longPct < 40 ? 'Contrarian ↑' : 'Neutral';
+  const dtStr     = d.dt ? new Date(d.dt).toLocaleString('cs-CZ',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+
+  // Jeden centrovaný graf pro celý pár
+  panel.innerHTML=`
+    <div style="grid-column:1/-1;display:flex;flex-direction:column;align-items:center;gap:8px;padding:4px 0">
+      <div style="display:flex;align-items:center;gap:16px;width:100%;max-width:260px;justify-content:space-between">
+        <span class="cot-title" style="margin-bottom:0">Retail · ${activePair}</span>
+        <div class="cot-legend"><span class="lg">Long</span><span class="sh">Short</span></div>
+      </div>
+      <div class="cot-canvas-wrap" style="height:110px">
+        <canvas id="retail-pair" width="110" height="110" role="img" aria-label="Retail ${activePair}"></canvas>
+        <span class="cot-pct" style="color:${signalCol};font-size:13px">${d.longPct}%</span>
+      </div>
+      <div style="text-align:center;font-size:11px;font-family:var(--mono);color:${signalCol};font-weight:500">${signal}</div>
+      <div style="display:flex;gap:20px;font-size:10px;font-family:var(--mono);color:var(--text3)">
+        <span>Long <span style="color:var(--green)">${d.longPct}%</span></span>
+        <span>Short <span style="color:var(--red)">${d.shortPct}%</span></span>
+        ${dtStr?`<span>${dtStr}</span>`:''}
+      </div>
+    </div>`;
+
+  const ctx2=document.getElementById('retail-pair')?.getContext('2d');
+  if(!ctx2) return;
+  if(cotCharts['retail-pair']) cotCharts['retail-pair'].destroy();
+  cotCharts['retail-pair']=new Chart(ctx2,{
+    type:'doughnut',
+    data:{datasets:[{data:[d.longPct,d.shortPct],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
+    options:{cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
+  });
+}
+
+// Uloží historická data pro klik na graf
+let _histDataA=[], _histDataB=[];
+
 async function renderHistory(){
   const[a,b]=activePair.split('/');
-  const days=tfDays(currentTF);
   const[ha,hb]=await Promise.all([
-    api(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=${days}&select=total_score,calculated_at`).then(r=>r.reverse()),
-    api(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=${days}&select=total_score,calculated_at`).then(r=>r.reverse())
+    api(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=500&select=total_score,calculated_at`).then(r=>r.reverse()),
+    api(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=500&select=total_score,calculated_at`).then(r=>r.reverse())
   ]);
-  const len=Math.min(ha.length,hb.length);
-  const labels=ha.slice(-len).map(r=>{
+  const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-tfDays(currentTF));
+  const haF=ha.filter(r=>new Date(r.calculated_at)>=cutoff);
+  const hbF=hb.filter(r=>new Date(r.calculated_at)>=cutoff);
+  const len=Math.min(haF.length,hbF.length)||Math.min(ha.length,hb.length);
+  const haU=len>0&&haF.length>=len?haF:ha.slice(-Math.min(ha.length,hb.length));
+  const hbU=len>0&&hbF.length>=len?hbF:hb.slice(-Math.min(ha.length,hb.length));
+
+  // Ulož pro klik
+  _histDataA=haU.slice(-len);
+  _histDataB=hbU.slice(-len);
+
+  const labels=_histDataA.map(r=>{
     const d=new Date(r.calculated_at);
     return d.toLocaleDateString('cs-CZ',{month:'numeric',day:'numeric'});
   });
-  const diff=ha.slice(-len).map((r,i)=>Math.round((r.total_score-(hb[hb.length-len+i]?.total_score||0))*10)/10);
+  const diff=_histDataA.map((r,i)=>Math.round((r.total_score-(_histDataB[i]?.total_score||0))*10)/10);
+
   const ctx=document.getElementById('histChart').getContext('2d');
   if(histChart)histChart.destroy();
   histChart=new Chart(ctx,{
@@ -486,17 +1005,83 @@ async function renderHistory(){
     }]},
     options:{
       responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{
-        backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
-        titleColor:'#8b8f99',bodyColor:'#e2e4e8',
-        callbacks:{label:ctx=>'Score: '+(ctx.raw>0?'+':'')+ctx.raw}
-      }},
+      onClick:(e,els)=>{
+        if(!els.length){
+          // Klik mimo bod → reset na live
+          if(historyMode) resetHistoryMode();
+          return;
+        }
+        const idx=els[0].index;
+        const dateA=_histDataA[idx]?.calculated_at;
+        const dateB=_histDataB[idx]?.calculated_at;
+        if(dateA&&dateB) loadHistoricalScores(dateA,dateB,labels[idx]);
+      },
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
+          titleColor:'#8b8f99',bodyColor:'#e2e4e8',
+          callbacks:{
+            label:ctx=>'Score: '+(ctx.raw>0?'+':'')+ctx.raw,
+            afterLabel:()=>'← klikni pro detail'
+          }
+        }
+      },
       scales:{
         x:{ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'}},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}},
         y:{ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},callback:v=>fmt(v)},grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}}
       }
     }
   });
+}
+
+async function loadHistoricalScores(dateA, dateB, label){
+  const[a,b]=activePair.split('/');
+  historyMode=true;
+  historyDate=label;
+
+  // Zobraz indikátor
+  const indicator=document.getElementById('hist-mode-indicator');
+  if(indicator){
+    indicator.style.display='flex';
+    indicator.querySelector('.hist-date').textContent=label;
+  }
+
+  try{
+    // Načti currency_scores nejblíže k danému datu pro obě měny
+    // Formátuj datum správně pro Supabase (ISO string)
+    const dtA=new Date(dateA).toISOString();
+    const dtB=new Date(dateB).toISOString();
+    const[ra,rb]=await Promise.all([
+      api(`currency_scores?currency=eq.${a}&calculated_at=lte.${encodeURIComponent(dtA)}&order=calculated_at.desc&limit=1&select=*`),
+      api(`currency_scores?currency=eq.${b}&calculated_at=lte.${encodeURIComponent(dtB)}&order=calculated_at.desc&limit=1&select=*`)
+    ]);
+
+    if(!ra.length||!rb.length) return;
+
+    // Ulož live data a přepni na historická
+    CS_LIVE={...CS};
+    CS[a]=ra[0];
+    CS[b]=rb[0];
+    // Přidej seasonality score (zůstane live)
+    CS[a].score_seasonal=CS_LIVE[a]?.score_seasonal;
+    CS[b].score_seasonal=CS_LIVE[b]?.score_seasonal;
+
+    renderScoreOverview();
+  }catch(e){
+    console.error('loadHistoricalScores error:',e);
+  }
+}
+
+function resetHistoryMode(){
+  if(!historyMode) return;
+  historyMode=false;
+  historyDate=null;
+  // Obnov live CS
+  Object.assign(CS, CS_LIVE);
+  const indicator=document.getElementById('hist-mode-indicator');
+  if(indicator) indicator.style.display='none';
+  renderScoreOverview();
 }
 
 function setTF(tf,btn){
@@ -506,15 +1091,34 @@ function setTF(tf,btn){
   renderHistory();
 }
 
-function renderCOT(){
+async function renderCOT(){
   const[a,b]=activePair.split('/');
   document.getElementById('cot-pair-lbl').textContent=activePair;
   const panel=document.getElementById('cot-panel');
-  const sa=CS[a],sb=CS[b];
-  function cotItem(ccy, scoreVal){
-    const v=scoreVal??0;
-    const longPct=Math.round(50+v*10);
-    const shortPct=100-longPct;
+
+  // Načti reálná COT % z event_scores detail
+  async function getCotDetail(ccy){
+    try{
+      const rows=await api(
+        `economic_events?currency=eq.${ccy}&event_type=eq.cot&order=event_datetime.desc&limit=1&select=actual,forecast,previous`
+      );
+      if(rows.length){
+        const r=rows[0];
+        const lp=r.forecast??50;
+        return{
+          longPct: lp,
+          shortPct: Math.round((100-lp)*10)/10,
+          netPos: r.actual??0
+        };
+      }
+    }catch(e){}
+    return{longPct:50,shortPct:50,netPos:0};
+  }
+
+  const[da,db]=await Promise.all([getCotDetail(a),getCotDetail(b)]);
+
+  function cotItem(ccy,d){
+    const col=d.longPct>50?'var(--green)':d.longPct<50?'var(--red)':'var(--text2)';
     return`<div class="cot-item">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
         <span class="cot-title">COT · ${ccy}</span>
@@ -522,20 +1126,20 @@ function renderCOT(){
       </div>
       <div class="cot-canvas-wrap">
         <canvas id="cot-${ccy}" width="90" height="90" role="img" aria-label="COT ${ccy}"></canvas>
-        <span class="cot-pct" style="color:var(--green)">${Math.min(Math.max(longPct,0),100)}%</span>
+        <span class="cot-pct" style="color:${col}">${d.longPct}%</span>
       </div>
     </div>`;
   }
-  panel.innerHTML=cotItem(a,sa?.score_cot)+cotItem(b,sb?.score_cot);
-  [a,b].forEach((ccy,i)=>{
-    const s=(i===0?sa:sb)?.score_cot??0;
-    const lp=Math.min(Math.max(Math.round(50+s*10),5),95);
+
+  panel.innerHTML=cotItem(a,da)+cotItem(b,db);
+
+  [[a,da],[b,db]].forEach(([ccy,d])=>{
     const ctx2=document.getElementById('cot-'+ccy)?.getContext('2d');
     if(!ctx2)return;
     if(cotCharts[ccy])cotCharts[ccy].destroy();
     cotCharts[ccy]=new Chart(ctx2,{
       type:'doughnut',
-      data:{datasets:[{data:[lp,100-lp],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
+      data:{datasets:[{data:[d.longPct,d.shortPct],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
       options:{cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
     });
   });
