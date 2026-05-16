@@ -827,10 +827,12 @@ function renderScoreOverview(){
   const sa=CS[a],sb=CS[b];
   const pairKey=(a+b).toUpperCase();
 
-  // Seasonality přímo pro pár z SEAS_DATA
+  // Seasonality přímo pro pár z SEAS_DATA - vždy používáme avg_10y pro scoring
   const curMonth=new Date().getMonth()+1;
-  const seasVal=SEAS_DATA[pairKey]?.[curMonth]?.avg_10y??null;
+  const seasRow=SEAS_DATA[pairKey]?.[curMonth]??null;
+  const seasVal=seasRow?.avg_10y??null;
   const seasScore=seasVal!=null?(seasVal>0.2?1:seasVal<-0.2?-1:0):null;
+  console.log('Seasonality debug:', pairKey, curMonth, seasRow, seasVal, seasScore);
 
   const types=[
     ['COT Bias',      'score_cot'],
