@@ -425,11 +425,13 @@ function setStatus(s,t){
 async function loadSeasonality(){
   // Stáhni všechna seasonality data najednou
   try{
-    const rows=await api('seasonality_data?select=pair,month,avg_5y,avg_10y,avg_15y,bullish_pct_10y&order=pair.asc,month.asc');
+    const rows=await api('seasonality_data?select=pair,week,month,avg_5y,avg_10y,avg_15y,bullish_pct_10y&order=pair.asc,week.asc,month.asc');
     SEAS_DATA={};
     rows.forEach(r=>{
       if(!SEAS_DATA[r.pair]) SEAS_DATA[r.pair]=[];
-      SEAS_DATA[r.pair][r.month]=r;
+      // Týdenní data mají week, měsíční mají month
+      const idx = r.week ?? r.month;
+      SEAS_DATA[r.pair][idx]=r;
     });
     // Přidej seasonality skóre do CS pro Score Overview
     injectSeasonalScore();
@@ -439,11 +441,12 @@ async function loadSeasonality(){
 }
 
 function injectSeasonalScore(){
-  // Pro každou měnu sečti sezónní skóre z párů kde je base měna
   const now=new Date();
-  const month=now.getMonth()+1;
+  const startOfYear=new Date(now.getFullYear(),0,1);
+  const curWeek=Math.ceil(((now-startOfYear)/86400000+startOfYear.getDay()+1)/7);
+  const curMonth=now.getMonth()+1;
+
   Object.keys(CS).forEach(ccy=>{
-    // Najdi páry kde je tato měna base a průměruj skóre
     let scores=[];
     const MAJOR_BASE={'EUR':['EURUSD','EURGBP','EURJPY','EURCHF','EURAUD','EURCAD','EURNZD'],
       'GBP':['GBPUSD','GBPJPY','GBPCHF','GBPAUD','GBPCAD','GBPNZD'],
@@ -456,12 +459,14 @@ function injectSeasonalScore(){
     };
     const pairs=MAJOR_BASE[ccy]||[];
     pairs.forEach(p=>{
-      const d=SEAS_DATA[p]?.[month];
+      // Detekuj týdenní vs měsíční data
+      const isWeekly=SEAS_DATA[p]&&SEAS_DATA[p].filter(Boolean).length>15;
+      const idx=isWeekly?curWeek:curMonth;
+      const d=SEAS_DATA[p]?.[idx];
       if(!d) return;
-      // Pokud je mena quote v paru, invertuj skóre
       const isBase=p.startsWith(ccy);
       const avg=isBase?d.avg_10y:-d.avg_10y;
-      const sc=avg>0.2?1:avg<-0.2?-1:0;
+      const sc=avg>0.15?1:avg<-0.15?-1:0;
       scores.push(sc);
     });
     if(scores.length){
@@ -495,25 +500,41 @@ function renderSeasonality(){
   }
 
   const now=new Date();
+  const startOfYear=new Date(now.getFullYear(),0,1);
+  const curWeek=Math.ceil(((now-startOfYear)/86400000+startOfYear.getDay()+1)/7);
   const curMonth=now.getMonth()+1;
   const MFULL=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   const key=currentSeasTF===5?'avg_5y':currentSeasTF===10?'avg_10y':'avg_15y';
-  const vals=[];
-  for(let m=1;m<=12;m++) vals.push(data[m]?.[key]??0);
+  const isWeekly=data.filter(Boolean).length>15;
+  const dataLen=isWeekly?52:12;
 
-  const curVal=vals[curMonth-1];
-  const curScore=curVal>0.2?'+1':curVal<-0.2?'-1':'0';
-  const curCol=curVal>0.3?'var(--green)':curVal<-0.3?'var(--red)':'var(--text2)';
-  const bullPct=data[curMonth]?.bullish_pct_10y??50;
+  const vals=[], labels=[];
+  for(let i=1;i<=dataLen;i++){
+    vals.push(data[i]?.[key]??0);
+    if(isWeekly){
+      const month=data[i]?.month??Math.ceil(i/4.33);
+      const prevMonth=i>1?(data[i-1]?.month??Math.ceil((i-1)/4.33)):0;
+      labels.push(month!==prevMonth?MFULL[month]:'');
+    } else {
+      labels.push(MFULL[i]||'');
+    }
+  }
 
-  // Destroy old chart before innerHTML reset
+  const curIdx=isWeekly?curWeek-1:curMonth-1;
+  const curVal=vals[Math.min(curIdx,vals.length-1)];
+  const curScore=curVal>0.15?'+1':curVal<-0.15?'-1':'0';
+  const curCol=curVal>0.15?'var(--green)':curVal<-0.2?'var(--red)':'var(--text2)';
+  const curData=isWeekly?data[curWeek]:data[curMonth];
+  const bullPct=curData?.bullish_pct_10y??50;
+  const periodLabel=isWeekly?`W${curWeek}`:`${MFULL[curMonth]}`;
+
   if(window.seasChart){ window.seasChart.destroy(); window.seasChart=null; seasChart=null; }
 
   panel.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px">
-        <span style="font-size:11px;color:var(--text2);font-family:var(--mono)">${MFULL[curMonth]} avg:</span>
+        <span style="font-size:11px;color:var(--text2);font-family:var(--mono)">${periodLabel} avg:</span>
         <span style="font-size:16px;font-weight:600;font-family:var(--mono);color:${curCol}">${curVal>0?'+':''}${curVal.toFixed(3)}%</span>
         <span style="padding:2px 8px;border-radius:4px;border:1px solid ${curCol};color:${curCol};font-size:11px;font-family:var(--mono)">Score ${curScore}</span>
       </div>
@@ -524,246 +545,6 @@ function renderSeasonality(){
     </div>`;
 
   const ctx=document.getElementById('seasChart').getContext('2d');
-
-  // Gradient fill
-  const grad=ctx.createLinearGradient(0,0,0,130);
-  grad.addColorStop(0,'rgba(59,130,246,0.25)');
-  grad.addColorStop(1,'rgba(59,130,246,0.02)');
-
-  // Zvýrazni aktuální měsíc modrým bodem
-  const pointBg=vals.map((_,i)=>i===curMonth-1?'#3b82f6':'rgba(59,130,246,0.5)');
-  const pointR=vals.map((_,i)=>i===curMonth-1?6:3);
-  const pointBorder=vals.map((_,i)=>i===curMonth-1?'#fff':'rgba(59,130,246,0.8)');
-  const pointBW=vals.map((_,i)=>i===curMonth-1?2:0);
-
-  window.seasChart=seasChart=new Chart(ctx,{
-    type:'line',
-    data:{
-      labels:MFULL.slice(1),
-      datasets:[{
-        data:vals,
-        borderColor:'#3b82f6',
-        backgroundColor:grad,
-        borderWidth:2,
-        pointRadius:pointR,
-        pointBackgroundColor:pointBg,
-        pointBorderColor:pointBorder,
-        pointBorderWidth:pointBW,
-        fill:true,
-        tension:0.4
-      }]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
-          titleColor:'#8b8f99',bodyColor:'#e2e4e8',
-          callbacks:{
-            label:c=>`Avg: ${c.raw>0?'+':''}${c.raw.toFixed(3)}%`,
-            afterLabel:c=>{
-              const m=c.dataIndex+1;
-              const bp=data[m]?.bullish_pct_10y??50;
-              return `Bull: ${bp}%`;
-            }
-          }
-        }
-      },
-      scales:{
-        x:{
-          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'}},
-          grid:{color:'rgba(255,255,255,0.04)'},
-          border:{color:'transparent'}
-        },
-        y:{
-          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},callback:v=>(v>0?'+':'')+v.toFixed(2)+'%'},
-          grid:{color:'rgba(255,255,255,0.04)'},
-          border:{color:'transparent'}
-        }
-      }
-    }
-  });
-}
-
-
-// Globální stav pro Currency Events
-const CEVT_LIMIT = {a: 10, b: 10};
-
-async function renderCurrencyEvents() {
-  const [a, b] = activePair.split('/');
-  const panel = document.getElementById('cevt-panel');
-  const lbl = document.getElementById('cevt-pair-lbl');
-  if (!panel) return;
-  if (lbl) lbl.textContent = activePair;
-
-  // Reset limitů při změně páru
-  CEVT_LIMIT.a = 10;
-  CEVT_LIMIT.b = 10;
-
-  async function fetchEvents(ccy, limit) {
-    try {
-      return await api(
-        `event_scores?select=score,bias,detail,scored_at,economic_events(event_name,event_datetime,currency,actual,forecast,event_type)` +
-        `&economic_events.currency=eq.${ccy}` +
-        `&order=scored_at.desc&limit=${limit}` +
-        `&economic_events.event_type=neq.retail&economic_events.event_type=neq.cot`
-      );
-    } catch(e) { return []; }
-  }
-
-  async function fetchEventsForCcy(ccy, limit) {
-    try {
-      // Nejprve získej event IDs pro danou měnu
-      const events = await api(
-        `economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type`
-      );
-      if (!events.length) return [];
-      const ids = events.map(e => e.id).join(',');
-      const scores = await api(
-        `event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`
-      );
-      const scoreMap = {};
-      scores.forEach(s => scoreMap[s.event_id] = s);
-      return events.map(e => ({...e, ...scoreMap[e.id]}));
-    } catch(e) { return []; }
-  }
-
-  function evtItem(ev) {
-    const sc = ev.score ?? 0;
-    const col = sc > 0 ? 'var(--green)' : sc < 0 ? 'var(--red)' : 'var(--text2)';
-    const bias = ev.bias || '';
-    const dt = ev.event_datetime
-      ? new Date(ev.event_datetime).toLocaleString('cs-CZ', {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})
-      : '—';
-    const name = (ev.event_name || '').replace(/Myfxbook Sentiment .*/,'').substring(0, 45);
-    const a = ev.actual != null ? ev.actual : '—';
-    const f = ev.forecast != null ? ev.forecast : '—';
-    const type = ev.event_type ? `<span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase">${ev.event_type}</span>` : '';
-    return `<div class="cevt-item">
-      <div class="cevt-top">
-        <span class="cevt-name" title="${ev.event_name || ''}">${name}</span>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${col}">${sc > 0 ? '+' : ''}${sc}</span>
-      </div>
-      <div class="cevt-bottom">
-        <span class="cevt-date">${dt}</span>
-        ${type}
-        <span class="cevt-vals">A=${a} · F=${f}</span>
-        ${bias ? `<span style="font-size:10px;font-family:var(--mono);color:${col}">${bias}</span>` : ''}
-      </div>
-    </div>`;
-  }
-
-  function colHtml(ccy, events, limitKey) {
-    const score = CS[ccy]?.total_score ?? null;
-    const scCol = score != null ? gc(score) : 'var(--text2)';
-    const header = `<div class="cevt-header">
-      <span class="cevt-ccy" style="color:${scCol}">${ccy}</span>
-      ${score != null ? `<span style="font-size:11px;font-family:var(--mono);color:${scCol};padding:2px 8px;border-radius:4px;background:var(--bg3)">${fmt(score)}</span>` : ''}
-    </div>`;
-    if (!events.length) {
-      return `<div class="cevt-col">${header}<div class="empty">Žádné záznamy</div></div>`;
-    }
-    const items = events.map(evtItem).join('');
-    const moreBtn = `<button class="cevt-more" onclick="loadMoreEvents('${ccy}','${limitKey}')">↓ Zobrazit více</button>`;
-    return `<div class="cevt-col" id="cevt-col-${ccy}">${header}${items}${moreBtn}</div>`;
-  }
-
-  panel.innerHTML = `<div class="empty" style="grid-column:1/-1">Načítám...</div>`;
-
-  const [ea, eb] = await Promise.all([
-    fetchEventsForCcy(a, CEVT_LIMIT.a),
-    fetchEventsForCcy(b, CEVT_LIMIT.b)
-  ]);
-
-  panel.innerHTML = colHtml(a, ea, 'a') + colHtml(b, eb, 'b');
-}
-
-async function loadMoreEvents(ccy, limitKey) {
-  CEVT_LIMIT[limitKey] += 10;
-  const limit = CEVT_LIMIT[limitKey];
-
-  async function fetchEventsForCcy(ccy, limit) {
-    try {
-      const events = await api(
-        `economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type`
-      );
-      if (!events.length) return [];
-      const ids = events.map(e => e.id).join(',');
-      const scores = await api(
-        `event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`
-      );
-      const scoreMap = {};
-      scores.forEach(s => scoreMap[s.event_id] = s);
-      return events.map(e => ({...e, ...scoreMap[e.id]}));
-    } catch(e) { return []; }
-  }
-
-  function evtItem(ev) {
-    const sc = ev.score ?? 0;
-    const col = sc > 0 ? 'var(--green)' : sc < 0 ? 'var(--red)' : 'var(--text2)';
-    const bias = ev.bias || '';
-    const dt = ev.event_datetime
-      ? new Date(ev.event_datetime).toLocaleString('cs-CZ', {day:'numeric',month:'numeric',hour:'2-digit',minute:'2-digit'})
-      : '—';
-    const name = (ev.event_name || '').replace(/Myfxbook Sentiment .*/,'').substring(0, 45);
-    const a = ev.actual != null ? ev.actual : '—';
-    const f = ev.forecast != null ? ev.forecast : '—';
-    const type = ev.event_type ? `<span style="font-size:9px;font-family:var(--mono);color:var(--text3);text-transform:uppercase">${ev.event_type}</span>` : '';
-    return `<div class="cevt-item">
-      <div class="cevt-top">
-        <span class="cevt-name" title="${ev.event_name || ''}">${name}</span>
-        <span style="font-size:13px;font-weight:700;font-family:var(--mono);color:${col}">${sc > 0 ? '+' : ''}${sc}</span>
-      </div>
-      <div class="cevt-bottom">
-        <span class="cevt-date">${dt}</span>
-        ${type}
-        <span class="cevt-vals">A=${a} · F=${f}</span>
-        ${bias ? `<span style="font-size:10px;font-family:var(--mono);color:${col}">${bias}</span>` : ''}
-      </div>
-    </div>`;
-  }
-
-  const events = await fetchEventsForCcy(ccy, limit);
-  const col = document.getElementById(`cevt-col-${ccy}`);
-  if (!col) return;
-  const score = CS[ccy]?.total_score ?? null;
-  const scCol = score != null ? gc(score) : 'var(--text2)';
-  const header = `<div class="cevt-header">
-    <span class="cevt-ccy" style="color:${scCol}">${ccy}</span>
-    ${score != null ? `<span style="font-size:11px;font-family:var(--mono);color:${scCol};padding:2px 8px;border-radius:4px;background:var(--bg3)">${fmt(score)}</span>` : ''}
-  </div>`;
-  const items = events.map(evtItem).join('');
-  const moreBtn = `<button class="cevt-more" onclick="loadMoreEvents('${ccy}','${limitKey}')">↓ Zobrazit více</button>`;
-  col.innerHTML = header + items + moreBtn;
-}
-
-async function loadAll(){
-  setStatus('loading','Načítám...');
-  try{
-    const[scores,events]=await Promise.all([
-      api('v_current_scores?select=*&order=total_score.desc'),
-      api('event_scores?select=*,economic_events(event_name,event_datetime,currency,actual,forecast)&order=scored_at.desc&limit=20')
-    ]);
-    CS={};
-    scores.forEach(r=>CS[r.currency]=r);
-    await loadSeasonality();
-    buildPairDropdown();
-    renderCurrencies(scores);
-    renderScoreOverview();
-    renderHistory();
-    renderCOT();
-    renderRankings();
-    renderNews(events);
-    renderRetailSentiment();
-    renderSeasonality();
-    renderCurrencyEvents();
-    if(!document.getElementById('page-pairs').classList.contains('hidden')) renderPairsTable();
-    setStatus('ok',new Date().toLocaleTimeString('cs-CZ')+' · live');
-  }catch(e){
-    setStatus('err','Chyba: '+e.message);
-  }
-}
 
 function buildPairDropdown(){
   const sel=document.getElementById('pair-dropdown');
@@ -827,12 +608,15 @@ function renderScoreOverview(){
   const sa=CS[a],sb=CS[b];
   const pairKey=(a+b).toUpperCase();
 
-  // Seasonality přímo pro pár z SEAS_DATA - vždy používáme avg_10y pro scoring
+  // Seasonality přímo pro pár z SEAS_DATA - použij aktuální TF (stejný jako graf)
   const curMonth=new Date().getMonth()+1;
-  const seasRow=SEAS_DATA[pairKey]?.[curMonth]??null;
+  const startOfYear2=new Date(now.getFullYear(),0,1);
+  const curWeek2=Math.ceil(((now-startOfYear2)/86400000+startOfYear2.getDay()+1)/7);
+  const isWeekly2=SEAS_DATA[pairKey]&&SEAS_DATA[pairKey].filter(Boolean).length>15;
+  const seasIdx=isWeekly2?curWeek2:curMonth;
+  const seasRow=SEAS_DATA[pairKey]?.[seasIdx]??null;
   const seasVal=seasRow?.avg_10y??null;
-  const seasScore=seasVal!=null?(seasVal>0.2?1:seasVal<-0.2?-1:0):null;
-  console.log('Seasonality debug:', pairKey, curMonth, seasRow, seasVal, seasScore);
+  const seasScore=seasVal!=null?(seasVal>0.15?1:seasVal<-0.15?-1:0):null;
 
   const types=[
     ['COT Bias',      'score_cot'],
