@@ -269,6 +269,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
       <div class="cot-pair" id="cot-panel"></div>
     </div>
 
+    <!-- COT Net Positions bar chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">COT Net Positions · Všechny měny</span>
+        <span class="card-meta" id="cot-bar-lbl"></span>
+      </div>
+      <div style="position:relative;height:220px">
+        <canvas id="cotBarChart" role="img" aria-label="COT Net Positions"></canvas>
+      </div>
+      <div id="cot-bar-dates" style="display:flex;gap:16px;margin-top:10px;justify-content:flex-end"></div>
+    </div>
+
     <!-- Seasonality -->
     <div class="card">
       <div class="card-header">
@@ -400,7 +412,7 @@ for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++) if(i!==j) PAIRS.pu
 
 const CEVT_LIMIT={a:10,b:10};
 let pairsSort='default', pairsSortDir='desc';
-let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={}, seasChart=null;
+let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={}, seasChart=null, cotBarChart=null;
 let SEAS_DATA={}, currentSeasTF=10, seasGranularity="auto";
 let historyMode=false, historyDate=null, CS_LIVE={};
 
@@ -559,6 +571,7 @@ async function loadAll(){
     renderScoreOverview();
     renderHistory();
     renderCOT();
+    renderCotBarChart();
     renderRankings();
     renderNews(events);
     renderRetailSentiment();
@@ -935,6 +948,7 @@ function onPairChange(){
   renderScoreOverview();
   renderHistory();
   renderCOT();
+  renderCotBarChart();
   renderRetailSentiment();
   renderSeasonality();
   renderCurrencyEvents();
@@ -1236,6 +1250,132 @@ function setTF(tf,btn){
   document.querySelectorAll('.tf-btn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   renderHistory();
+}
+
+async function renderCotBarChart(){
+  const [a,b]=activePair.split('/');
+  const lbl=document.getElementById('cot-bar-lbl');
+  const datesEl=document.getElementById('cot-bar-dates');
+
+  try{
+    const [rowsA,rowsB]=await Promise.all([
+      api(`economic_events?currency=eq.${a}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`),
+      api(`economic_events?currency=eq.${b}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`)
+    ]);
+
+    const fmtDate=d=>{
+      if(!d) return '—';
+      return new Date(d).toLocaleDateString('cs-CZ',{day:'numeric',month:'numeric',year:'numeric'});
+    };
+    const fmtNet=v=>v==null?'—':`${v>0?'+':''}${Math.round(v).toLocaleString('cs-CZ')}`;
+    const toNum=v=>v==null?null:parseFloat(v);
+
+    // index 0 = nejnovější, index 1 = starší
+    const netA_new=toNum(rowsA[0]?.actual);
+    const netA_old=toNum(rowsA[1]?.actual);
+    const netB_new=toNum(rowsB[0]?.actual);
+    const netB_old=toNum(rowsB[1]?.actual);
+
+    const dateNew=rowsA[0]?.event_datetime||rowsB[0]?.event_datetime;
+    const dateOld=rowsA[1]?.event_datetime||rowsB[1]?.event_datetime;
+
+    // Long (net>=0) = bílá, Short (net<0) = modrá — stejné jako donuts
+    const col=(net,dim)=>{
+      if(net==null) return 'rgba(100,100,100,0.15)';
+      if(net>=0) return dim?'rgba(228,228,231,0.3)':'#e4e4e7';
+      return dim?'rgba(59,130,246,0.3)':'#3b82f6';
+    };
+
+    const ctx=document.getElementById('cotBarChart')?.getContext('2d');
+    if(!ctx) return;
+    if(cotBarChart){cotBarChart.destroy();cotBarChart=null;}
+
+    cotBarChart=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:[a,b],
+        datasets:[
+          {
+            label:fmtDate(dateOld)+' (starší)',
+            data:[netA_old,netB_old],
+            backgroundColor:[col(netA_old,true),col(netB_old,true)],
+            borderColor:[col(netA_old,false),col(netB_old,false)],
+            borderWidth:1,
+            borderRadius:4,
+            barPercentage:0.5,
+            categoryPercentage:0.65,
+          },
+          {
+            label:fmtDate(dateNew)+' (nové)',
+            data:[netA_new,netB_new],
+            backgroundColor:[col(netA_new,false),col(netB_new,false)],
+            borderColor:[col(netA_new,false),col(netB_new,false)],
+            borderWidth:1,
+            borderRadius:4,
+            barPercentage:0.5,
+            categoryPercentage:0.65,
+          }
+        ]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            backgroundColor:'#18181b',
+            borderColor:'rgba(255,255,255,0.08)',
+            borderWidth:0.5,
+            titleColor:'#71717a',
+            bodyColor:'#e4e4e7',
+            callbacks:{
+              title:c=>`${c[0].label} · ${c[0].dataset.label}`,
+              label:c=>{
+                const v=c.raw;
+                if(v==null) return 'Žádná data';
+                return`Net: ${fmtNet(v)} ${v>=0?'(Long)':'(Short)'}`;
+              }
+            }
+          }
+        },
+        scales:{
+          x:{
+            ticks:{color:'#71717a',font:{size:14,family:'JetBrains Mono',weight:'600'}},
+            grid:{display:false},
+            border:{color:'transparent'}
+          },
+          y:{
+            ticks:{
+              color:'#3f3f46',
+              font:{size:9,family:'JetBrains Mono'},
+              callback:v=>Math.abs(v)>=1000?(v/1000).toFixed(0)+'K':v
+            },
+            grid:{color:'rgba(255,255,255,0.03)'},
+            border:{color:'transparent'}
+          }
+        }
+      }
+    });
+
+    if(lbl) lbl.textContent=activePair+' · Net pozice spekulantů';
+    if(datesEl){
+      datesEl.innerHTML=`
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text3)">
+          <div style="width:10px;height:10px;border-radius:2px;background:rgba(228,228,231,0.3);border:0.5px solid #e4e4e7"></div>
+          ${fmtDate(dateOld)} · starší
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text2)">
+          <div style="width:10px;height:10px;border-radius:2px;background:#e4e4e7"></div>
+          ${fmtDate(dateNew)} · nejnovější
+        </div>
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text3)">
+          <div style="width:10px;height:10px;border-radius:2px;background:#3b82f6"></div>
+          Short (net záporný)
+        </div>`;
+    }
+  }catch(e){
+    console.warn('COT bar chart error:',e);
+  }
 }
 
 async function renderCOT(){
