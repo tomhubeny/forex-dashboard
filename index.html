@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forex Fundamental Analyzer</title>
+<title>Forex Analyzer</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23000'/><text x='28' y='72' font-family='Georgia,serif' font-size='62' font-weight='700' fill='white'>F</text><text x='52' y='72' font-family='Georgia,serif' font-size='62' font-weight='700' fill='%23f0b429'>A</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -58,7 +59,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .nav-tab.active{background:var(--bg3);color:var(--text);font-weight:500}
 
 /* ── Layout ── */
-.main{display:grid;grid-template-columns:1fr 280px;gap:12px;padding:14px 20px;max-width:1500px;margin:0 auto}
+.main{display:grid;grid-template-columns:1fr 320px;gap:16px;padding:18px 24px;max-width:1500px;margin:0 auto}
 .left-col{display:flex;flex-direction:column;gap:12px}
 .right-col{display:flex;flex-direction:column;gap:12px}
 
@@ -113,14 +114,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 
 /* ── COT panel ── */
 .cot-pair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.cot-item{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:12px;text-align:center}
+.cot-item{background:var(--bg3);border:0.5px solid var(--border);border-radius:10px;padding:16px 12px;text-align:center}
 .cot-title{font-size:10px;font-family:var(--mono);color:var(--text2);margin-bottom:8px;text-align:left;letter-spacing:.05em}
 .cot-legend{display:flex;gap:10px;justify-content:flex-end;margin-bottom:6px}
 .cot-legend span{font-size:10px;font-family:var(--mono);color:var(--text2);display:flex;align-items:center;gap:4px}
 .cot-legend span::before{content:'';width:6px;height:6px;border-radius:50%}
-.cot-legend .lg::before{background:var(--green)}
-.cot-legend .sh::before{background:var(--red)}
-.cot-canvas-wrap{position:relative;height:90px;display:flex;align-items:center;justify-content:center}
+.cot-legend .lg::before{background:#ffffff}
+.cot-legend .sh::before{background:#3b82f6}
+.cot-canvas-wrap{position:relative;height:160px;display:flex;align-items:center;justify-content:center}
 .cot-pct{position:absolute;font-size:11px;font-family:var(--mono);color:var(--text2)}
 
 /* Rankings */
@@ -198,11 +199,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 <!-- HEADER -->
 <div class="header">
   <div class="header-brand">
+    <svg width="36" height="36" viewBox="0 0 100 100" style="border-radius:8px;flex-shrink:0">
+      <rect width="100" height="100" rx="14" fill="#000"/>
+      <text x="28" y="72" font-family="Georgia,serif" font-size="62" font-weight="700" fill="white">F</text>
+      <text x="52" y="72" font-family="Georgia,serif" font-size="62" font-weight="700" fill="#f0b429">A</text>
+    </svg>
     <div class="brand-name">FOREX <span>ANALYZER</span></div>
-    <div class="pair-select">
-      <select id="pair-dropdown" onchange="onPairChange()"></select>
-      <span style="color:var(--text3);font-size:10px">▼</span>
+    <div class="pair-select" style="position:relative;padding:0">
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
+        <span style="color:var(--text3);font-size:12px">🔍</span>
+        <input id="pair-search" type="text" placeholder="EUR/USD..." autocomplete="off"
+          style="background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:13px;font-weight:500;width:110px"
+          oninput="onPairSearch(this.value)"
+          onfocus="this.select();showPairDropdown()"
+          onblur="setTimeout(hidePairDropdown,150)"
+          onkeydown="onPairSearchKey(event)"
+        />
+        <span id="pair-search-clear" style="color:var(--text3);font-size:10px;cursor:pointer;display:none" onclick="clearPairSearch()">✕</span>
+      </div>
+      <div id="pair-suggestions" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;background:#1c1e22;border:1px solid rgba(255,255,255,0.1);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;max-height:280px;overflow-y:auto"></div>
     </div>
+    <select id="pair-dropdown" style="display:none" onchange="onPairChange()"></select>
   </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('analyzer',this)">Analyzer</button>
@@ -252,12 +269,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
       <div class="cot-pair" id="cot-panel"></div>
     </div>
 
-    <!-- Retail Sentiment -->
-    <div class="card">
-      <div class="card-header"><span class="card-title">Retail Sentiment · Myfxbook</span><span class="card-meta" id="retail-pair-lbl"></span></div>
-      <div style="display:flex;justify-content:center" id="retail-panel"></div>
-    </div>
-
     <!-- Seasonality -->
     <div class="card">
       <div class="card-header">
@@ -265,9 +276,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
         <div style="display:flex;align-items:center;gap:8px">
           <span class="card-meta" id="seas-pair-lbl"></span>
           <div style="display:flex;gap:3px">
-            <button class="tf-btn active" id="seas-5y"  onclick="setSeasTF(5,this)">5Y</button>
-            <button class="tf-btn"        id="seas-10y" onclick="setSeasTF(10,this)">10Y</button>
-            <button class="tf-btn"        id="seas-15y" onclick="setSeasTF(15,this)">15Y</button>
+            <button class="tf-btn" id="seas-5y"   onclick="setSeasTF(5,this)">5Y</button>
+            <button class="tf-btn active" id="seas-10y" onclick="setSeasTF(10,this)">10Y</button>
+            <button class="tf-btn" id="seas-15y"  onclick="setSeasTF(15,this)">15Y</button>
+            <span style="width:1px;height:12px;background:var(--border2);margin:0 2px"></span>
+            <button class="tf-btn" id="seas-gran-m"  onclick="setSeasGran('month',this)">M</button>
+            <button class="tf-btn" id="seas-gran-w"  onclick="setSeasGran('week',this)">W</button>
+            <button class="tf-btn" id="seas-gran-d"  onclick="setSeasGran('day',this)">D</button>
           </div>
         </div>
       </div>
@@ -303,6 +318,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
         <span class="so-final-label">Final Score</span>
         <span class="so-final-val muted" id="final-score">—</span>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">Retail Sentiment · Myfxbook</span><span class="card-meta" id="retail-pair-lbl"></span></div>
+      <div style="display:flex;justify-content:center" id="retail-panel"></div>
     </div>
   </div>
 </div>
@@ -382,7 +401,7 @@ for(let i=0;i<CCYS.length;i++) for(let j=0;j<CCYS.length;j++) if(i!==j) PAIRS.pu
 const CEVT_LIMIT={a:10,b:10};
 let pairsSort='default', pairsSortDir='desc';
 let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={}, seasChart=null;
-let SEAS_DATA={}, currentSeasTF=5;
+let SEAS_DATA={}, currentSeasTF=10, seasGranularity="auto";
 let historyMode=false, historyDate=null, CS_LIVE={};
 
 async function api(path){
@@ -622,6 +641,13 @@ function setSeasTF(y,btn){
   renderSeasonality();
 }
 
+function setSeasGran(g,btn){
+  seasGranularity=g;
+  document.querySelectorAll('#seas-gran-m,#seas-gran-w,#seas-gran-d').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderSeasonality();
+}
+
 function renderSeasonality(){
   const[a,b]=activePair.split('/');
   const pairKey=(a+b).toUpperCase();
@@ -638,41 +664,79 @@ function renderSeasonality(){
 
   const now=new Date();
   const getISOWeek=(d)=>{
-    const date=new Date(d);
-    date.setHours(0,0,0,0);
+    const date=new Date(d);date.setHours(0,0,0,0);
     date.setDate(date.getDate()+3-(date.getDay()+6)%7);
     const week1=new Date(date.getFullYear(),0,4);
     return 1+Math.round(((date-week1)/86400000-3+(week1.getDay()+6)%7)/7);
   };
   const curWeek=getISOWeek(now);
   const curMonth=now.getMonth()+1;
+  const curDayOfYear=Math.floor((now-new Date(now.getFullYear(),0,0))/86400000);
   const MFULL=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS_IN_MONTH=[0,31,28,31,30,31,30,31,31,30,31,30,31];
 
   const key=currentSeasTF===5?'avg_5y':currentSeasTF===10?'avg_10y':'avg_15y';
-  const isWeekly=data.filter(Boolean).length>15;
-  const dataLen=isWeekly?52:12;
+  const hasWeekly=data.filter(Boolean).length>15;
 
-  const vals=[], labels=[];
-  for(let i=1;i<=dataLen;i++){
-    vals.push(data[i]?.[key]??0);
-    if(isWeekly){
-      const month=data[i]?.month??Math.ceil(i/4.33);
-      const prevMonth=i>1?(data[i-1]?.month??Math.ceil((i-1)/4.33)):0;
-      labels.push(month!==prevMonth?MFULL[month]:'');
-    } else {
-      labels.push(MFULL[i]||'');
+  // Určení granularity
+  let gran=seasGranularity;
+  if(gran==='auto') gran=hasWeekly?'week':'month';
+
+  // Sestavení dat podle granularity
+  const vals=[], labels=[], dataRefs=[];
+
+  if(gran==='day'){
+    // Denní: 365 bodů — odvozujeme z měsíčních nebo týdenních dat interpolací
+    let dayNum=0;
+    for(let m=1;m<=12;m++){
+      const mData=data.find?.(r=>r&&r.month===m)??null;
+      // Zkus najít data pro tento měsíc
+      const mRow=Object.values(data).find(r=>r&&r.month===m)??null;
+      const daysInM=DAYS_IN_MONTH[m]+(m===2&&now.getFullYear()%4===0?1:0);
+      for(let d=1;d<=daysInM;d++){
+        dayNum++;
+        vals.push(mRow?.[key]??0);
+        labels.push(d===1?MFULL[m]:'');
+        dataRefs.push(mRow);
+      }
+    }
+  } else if(gran==='week'){
+    const dataLen=hasWeekly?52:12;
+    for(let i=1;i<=dataLen;i++){
+      vals.push(data[i]?.[key]??0);
+      if(hasWeekly){
+        const month=data[i]?.month??Math.ceil(i/4.33);
+        const prevMonth=i>1?(data[i-1]?.month??Math.ceil((i-1)/4.33)):0;
+        labels.push(month!==prevMonth?MFULL[month]:'');
+      } else {
+        labels.push(MFULL[i]||'');
+      }
+      dataRefs.push(data[i]??null);
+    }
+  } else {
+    // Měsíční
+    for(let i=1;i<=12;i++){
+      const row=hasWeekly?Object.values(data).find(r=>r&&r.month===i)??null:data[i]??null;
+      vals.push(row?.[key]??0);
+      labels.push(MFULL[i]);
+      dataRefs.push(row);
     }
   }
 
-  const curIdx=isWeekly?curWeek-1:curMonth-1;
-  const curVal=vals[Math.min(curIdx,vals.length-1)];
+  // Aktuální pozice
+  let curIdx=0;
+  if(gran==='day') curIdx=Math.min(curDayOfYear-1,vals.length-1);
+  else if(gran==='week') curIdx=Math.min(curWeek-1,vals.length-1);
+  else curIdx=curMonth-1;
+
+  const curVal=vals[curIdx]??0;
   const curScore=curVal>0.15?'+1':curVal<-0.15?'-1':'0';
   const curCol=curVal>0.15?'var(--green)':curVal<-0.15?'var(--red)':'var(--text2)';
-  const curData=isWeekly?data[curWeek]:data[curMonth];
+  const curData=dataRefs[curIdx];
   const bullPct=curData?.bullish_pct_10y??50;
-  const periodLabel=isWeekly?`W${curWeek}`:`${MFULL[curMonth]}`;
+  const periodLabel=gran==='day'?`Den ${curDayOfYear}`:gran==='week'?`W${curWeek}`:`${MFULL[curMonth]}`;
 
-  if(window.seasChart){ window.seasChart.destroy(); window.seasChart=null; seasChart=null; }
+  if(window.seasChart){window.seasChart.destroy();window.seasChart=null;seasChart=null;}
 
   panel.innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -681,39 +745,40 @@ function renderSeasonality(){
         <span style="font-size:16px;font-weight:600;font-family:var(--mono);color:${curCol}">${curVal>0?'+':''}${curVal.toFixed(3)}%</span>
         <span style="padding:2px 8px;border-radius:4px;border:1px solid ${curCol};color:${curCol};font-size:11px;font-family:var(--mono)">Score ${curScore}</span>
       </div>
-      <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">Bull ${bullPct}% · ${currentSeasTF}Y avg</span>
+      <span style="font-size:10px;font-family:var(--mono);color:var(--text3)">Bull ${bullPct}% · ${currentSeasTF}Y avg · ${gran==='day'?'denně':gran==='week'?'týdně':'měsíčně'}</span>
     </div>
-    <div style="position:relative;height:130px">
+    <div style="position:relative;height:200px">
       <canvas id="seasChart"></canvas>
     </div>`;
 
   const ctx=document.getElementById('seasChart').getContext('2d');
-  const grad=ctx.createLinearGradient(0,0,0,130);
-  grad.addColorStop(0,'rgba(59,130,246,0.25)');
-  grad.addColorStop(1,'rgba(59,130,246,0.02)');
+  const grad=ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(59,130,246,0.22)');
+  grad.addColorStop(1,'rgba(59,130,246,0.01)');
 
-  const pointBg=vals.map((_,i)=>i===curIdx?'#3b82f6':'rgba(59,130,246,0.5)');
-  const pointR=vals.map((_,i)=>i===curIdx?6:2);
+  // Body — den/týden je moc bodů, zmenšíme
+  const tooMany=vals.length>60;
+  // Aktuální den je vždy viditelný (větší bod), ostatní skryté při tooMany
+  const pointR=vals.map((_,i)=>i===curIdx?8:tooMany?0:2);
+  const pointBg=vals.map((_,i)=>i===curIdx?'#f0b429':'rgba(59,130,246,0.5)');
   const pointBorder=vals.map((_,i)=>i===curIdx?'#fff':'rgba(59,130,246,0.8)');
-  const pointBW=vals.map((_,i)=>i===curIdx?2:0);
+  const pointBW=vals.map((_,i)=>i===curIdx?2.5:0);
+  const pointStyle=vals.map((_,i)=>i===curIdx?'circle':'circle');
 
   window.seasChart=seasChart=new Chart(ctx,{
     type:'line',
-    data:{
-      labels,
-      datasets:[{
-        data:vals,
-        borderColor:'#3b82f6',
-        backgroundColor:grad,
-        borderWidth:1.5,
-        pointRadius:pointR,
-        pointBackgroundColor:pointBg,
-        pointBorderColor:pointBorder,
-        pointBorderWidth:pointBW,
-        fill:true,
-        tension:0.4
-      }]
-    },
+    data:{labels,datasets:[{
+      data:vals,
+      borderColor:'#3b82f6',
+      backgroundColor:grad,
+      borderWidth:tooMany?1:1.5,
+      pointRadius:pointR,
+      pointBackgroundColor:pointBg,
+      pointBorderColor:pointBorder,
+      pointBorderWidth:pointBW,
+      fill:true,
+      tension:0.3
+    }]},
     options:{
       responsive:true,maintainAspectRatio:false,
       plugins:{
@@ -722,14 +787,15 @@ function renderSeasonality(){
           backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
           titleColor:'#8b8f99',bodyColor:'#e2e4e8',
           callbacks:{
-            title:ctx=>{
-              const i=ctx[0].dataIndex;
-              return isWeekly?`W${i+1} · ${MFULL[data[i+1]?.month??1]||''}`:`${MFULL[i+1]||''}`;
+            title:c=>{
+              const i=c[0].dataIndex;
+              if(gran==='day') return `Den ${i+1} · ${MFULL[dataRefs[i]?.month??1]||''}`;
+              if(gran==='week') return `W${i+1} · ${MFULL[dataRefs[i]?.month??1]||''}`;
+              return MFULL[i+1]||'';
             },
             label:c=>`Avg: ${c.raw>0?'+':''}${c.raw.toFixed(3)}%`,
             afterLabel:c=>{
-              const i=c.dataIndex;
-              const bp=isWeekly?data[i+1]?.bullish_pct_10y:data[i+1]?.bullish_pct_10y;
+              const bp=dataRefs[c.dataIndex]?.bullish_pct_10y;
               return bp!=null?`Bull: ${bp}%`:'';
             }
           }
@@ -737,37 +803,131 @@ function renderSeasonality(){
       },
       scales:{
         x:{
-          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},maxRotation:0},
-          grid:{color:'rgba(255,255,255,0.04)'},
-          border:{color:'transparent'}
+          ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},maxRotation:0,
+            callback:(v,i)=>labels[i]||null
+          },
+          grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}
         },
         y:{
           ticks:{color:'#4a4e5a',font:{size:9,family:'JetBrains Mono'},callback:v=>(v>0?'+':'')+v.toFixed(2)+'%'},
-          grid:{color:'rgba(255,255,255,0.04)'},
-          border:{color:'transparent'}
+          grid:{color:'rgba(255,255,255,0.04)'},border:{color:'transparent'}
         }
       }
-    }
+    },
+    plugins:[{
+      id:'curLine',
+      afterDraw(chart){
+        const idx=curIdx;
+        if(idx<0||idx>=chart.data.labels.length) return;
+        const meta=chart.getDatasetMeta(0);
+        if(!meta.data[idx]) return;
+        const x=meta.data[idx].x;
+        const {top,bottom}=chart.chartArea;
+        const ctx2=chart.ctx;
+        ctx2.save();
+        ctx2.beginPath();
+        ctx2.moveTo(x,top);
+        ctx2.lineTo(x,bottom);
+        ctx2.strokeStyle='rgba(240,180,41,0.35)';
+        ctx2.lineWidth=1;
+        ctx2.setLineDash([4,3]);
+        ctx2.stroke();
+        ctx2.restore();
+      }
+    }]
   });
 }
 
 
+const ALL_PAIRS=['EUR/USD','GBP/USD','USD/JPY','USD/CHF','AUD/USD','USD/CAD','NZD/USD',
+  'EUR/GBP','EUR/JPY','GBP/JPY','EUR/CHF','EUR/AUD','EUR/CAD','EUR/NZD',
+  'GBP/CHF','GBP/AUD','GBP/CAD','GBP/NZD','AUD/JPY','CAD/JPY','CHF/JPY','NZD/JPY',
+  'AUD/CAD','AUD/CHF','AUD/NZD','CAD/CHF','NZD/CAD','NZD/CHF'];
+
+let suggestIdx=0;
+
 function buildPairDropdown(){
   const sel=document.getElementById('pair-dropdown');
-  const cur=sel.value||activePair;
-  const majorPairs=['EUR/USD','GBP/USD','USD/JPY','USD/CHF','AUD/USD','USD/CAD','NZD/USD',
-    'EUR/GBP','EUR/JPY','GBP/JPY','EUR/CHF','EUR/AUD','EUR/CAD','EUR/NZD',
-    'GBP/CHF','GBP/AUD','GBP/CAD','GBP/NZD','AUD/JPY','CAD/JPY','CHF/JPY','NZD/JPY',
-    'AUD/CAD','AUD/CHF','AUD/NZD','CAD/CHF','NZD/CAD','NZD/CHF'];
   sel.innerHTML='';
-  majorPairs.forEach(p=>{
-    const[a,b]=p.split('/');
+  ALL_PAIRS.forEach(p=>{
     const o=document.createElement('option');
-    o.value=p; o.textContent=a+' – '+b;
-    if(p===cur) o.selected=true;
+    o.value=p; o.textContent=p;
+    if(p===activePair) o.selected=true;
     sel.appendChild(o);
   });
-  activePair=sel.value||majorPairs[0];
+  // Nastav search input na aktuální pár
+  const inp=document.getElementById('pair-search');
+  if(inp) inp.value=activePair;
+}
+
+function onPairSearch(val){
+  const clear=document.getElementById('pair-search-clear');
+  if(clear) clear.style.display=val?'inline':'none';
+  showPairDropdown(val);
+}
+
+function showPairDropdown(filter=''){
+  const box=document.getElementById('pair-suggestions');
+  if(!box) return;
+  const q=(filter||document.getElementById('pair-search')?.value||'').toUpperCase().replace('-','/')
+  const filtered=ALL_PAIRS.filter(p=>!q||p.replace('/','').includes(q.replace('/',''))||p.includes(q));
+  if(!filtered.length){box.style.display='none';return;}
+  suggestIdx=0;
+  box.innerHTML=filtered.map((p,i)=>{
+    const sc=CS[p.split('/')[0]]&&CS[p.split('/')[1]]?
+      Math.round((CS[p.split('/')[0]].total_score-CS[p.split('/')[1]].total_score)*10)/10:null;
+    const scHtml=sc!=null?
+      '<span style="font-size:11px;font-family:var(--mono);font-weight:600;min-width:28px;text-align:right;color:'+(sc>0?'var(--green)':sc<0?'var(--red)':'var(--text3)')+'">'+(sc>0?'+':'')+sc+'</span>':'';
+    return '<div class="pair-sug-item" data-pair="'+p+'" data-idx="'+i+'" style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;cursor:pointer;font-family:var(--mono);font-size:13px;color:var(--text);border-radius:6px;margin:2px;transition:background .1s"'
+      +' onmouseenter="this.style.background="var(--bg4)"" onmouseleave="this.style.background="transparent""'
+      +' onclick="selectPair("'+p+'")">'
+      +'<span>'+p+'</span>'+scHtml+'</div>';
+  }).join('');
+  box.style.display='block';
+}
+
+function hidePairDropdown(){
+  const box=document.getElementById('pair-suggestions');
+  if(box) box.style.display='none';
+}
+
+function clearPairSearch(){
+  const inp=document.getElementById('pair-search');
+  if(inp){inp.value='';inp.focus();}
+  const clear=document.getElementById('pair-search-clear');
+  if(clear) clear.style.display='none';
+  showPairDropdown('');
+}
+
+function onPairSearchKey(e){
+  const box=document.getElementById('pair-suggestions');
+  const items=box?box.querySelectorAll('.pair-sug-item'):[];
+  if(e.key==='ArrowDown'){
+    suggestIdx=Math.min(suggestIdx+1,items.length-1);
+    items.forEach((el,i)=>el.style.background=i===suggestIdx?'var(--bg4)':'transparent');
+    e.preventDefault();
+  } else if(e.key==='ArrowUp'){
+    suggestIdx=Math.max(suggestIdx-1,0);
+    items.forEach((el,i)=>el.style.background=i===suggestIdx?'var(--bg4)':'transparent');
+    e.preventDefault();
+  } else if(e.key==='Enter'&&items.length){
+    const p=items[suggestIdx]?.dataset?.pair;
+    if(p) selectPair(p);
+  } else if(e.key==='Escape'){
+    hidePairDropdown();
+  }
+}
+
+function selectPair(p){
+  activePair=p;
+  const inp=document.getElementById('pair-search');
+  if(inp) inp.value=p;
+  const clear=document.getElementById('pair-search-clear');
+  if(clear) clear.style.display='none';
+  hidePairDropdown();
+  const sel=document.getElementById('pair-dropdown');
+  if(sel) sel.value=p;
+  onPairChange();
 }
 
 function onPairChange(){
@@ -784,15 +944,9 @@ function onPairChange(){
 
 function selectBase(ccy){
   const[,q]=activePair.split('/');
-  activePair=ccy+'/'+(q===ccy?CCYS.find(x=>x!==ccy):q);
-  document.getElementById('pair-dropdown').value=activePair;
+  const newPair=ccy+'/'+(q===ccy?CCYS.find(x=>x!==ccy):q);
   document.querySelectorAll('.ccy-cell').forEach(el=>el.classList.toggle('active',el.querySelector('.ccy-label').textContent===ccy));
-  renderScoreOverview();
-  renderHistory();
-  renderCOT();
-  renderRetailSentiment();
-  renderSeasonality();
-  renderCurrencyEvents();
+  selectPair(newPair);
 }
 
 function renderScoreOverview(){
@@ -918,9 +1072,12 @@ async function renderRetailSentiment(){
     return;
   }
 
-  const signalCol = d.longPct > 60 ? 'var(--red)' : d.longPct < 40 ? 'var(--green)' : 'var(--text2)';
+  const signalCol = d.longPct > 60 ? '#3b82f6' : d.longPct < 40 ? '#ffffff' : 'var(--text2)';
   const signal    = d.longPct > 60 ? 'Contrarian ↓' : d.longPct < 40 ? 'Contrarian ↑' : 'Neutral';
   const dtStr     = d.dt ? new Date(d.dt).toLocaleString('cs-CZ',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+  // Číslo uprostřed = barva větší části
+  const centerCol = d.longPct >= d.shortPct ? '#ffffff' : '#3b82f6';
+  const centerPct = d.longPct >= d.shortPct ? d.longPct : d.shortPct;
 
   // Jeden centrovaný graf pro celý pár
   panel.innerHTML=`
@@ -929,14 +1086,14 @@ async function renderRetailSentiment(){
         <span class="cot-title" style="margin-bottom:0">Retail · ${activePair}</span>
         <div class="cot-legend"><span class="lg">Long</span><span class="sh">Short</span></div>
       </div>
-      <div class="cot-canvas-wrap" style="height:110px">
-        <canvas id="retail-pair" width="110" height="110" role="img" aria-label="Retail ${activePair}"></canvas>
-        <span class="cot-pct" style="color:${signalCol};font-size:13px">${d.longPct}%</span>
+      <div class="cot-canvas-wrap" style="height:160px">
+        <canvas id="retail-pair" width="160" height="160" role="img" aria-label="Retail ${activePair}"></canvas>
+        <span class="cot-pct" style="color:${centerCol};font-size:16px;font-weight:500;letter-spacing:-0.5px">${centerPct}%</span>
       </div>
       <div style="text-align:center;font-size:11px;font-family:var(--mono);color:${signalCol};font-weight:500">${signal}</div>
       <div style="display:flex;gap:20px;font-size:10px;font-family:var(--mono);color:var(--text3)">
-        <span>Long <span style="color:var(--green)">${d.longPct}%</span></span>
-        <span>Short <span style="color:var(--red)">${d.shortPct}%</span></span>
+        <span>Long <span style="color:#ffffff;font-weight:600">${d.longPct}%</span></span>
+        <span>Short <span style="color:#3b82f6;font-weight:600">${d.shortPct}%</span></span>
         ${dtStr?`<span>${dtStr}</span>`:''}
       </div>
     </div>`;
@@ -946,8 +1103,13 @@ async function renderRetailSentiment(){
   if(cotCharts['retail-pair']) cotCharts['retail-pair'].destroy();
   cotCharts['retail-pair']=new Chart(ctx2,{
     type:'doughnut',
-    data:{datasets:[{data:[d.longPct,d.shortPct],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
-    options:{cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
+    data:{datasets:[{
+      data:[d.longPct,d.shortPct],
+      backgroundColor:['#ffffff','#3b82f6'],
+      borderWidth:0,
+      hoverOffset:0
+    }]},
+    options:{cutout:'70%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
   });
 }
 
@@ -1103,15 +1265,16 @@ async function renderCOT(){
   const[da,db]=await Promise.all([getCotDetail(a),getCotDetail(b)]);
 
   function cotItem(ccy,d){
-    const col=d.longPct>50?'var(--green)':d.longPct<50?'var(--red)':'var(--text2)';
+    const col = d.longPct >= d.shortPct ? '#ffffff' : '#3b82f6';
+    const pctLabel = d.longPct >= d.shortPct ? d.longPct+'%' : d.shortPct+'%';
     return`<div class="cot-item">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span class="cot-title">COT · ${ccy}</span>
         <div class="cot-legend"><span class="lg">Long</span><span class="sh">Short</span></div>
       </div>
       <div class="cot-canvas-wrap">
-        <canvas id="cot-${ccy}" width="90" height="90" role="img" aria-label="COT ${ccy}"></canvas>
-        <span class="cot-pct" style="color:${col}">${d.longPct}%</span>
+        <canvas id="cot-${ccy}" width="160" height="160" role="img" aria-label="COT ${ccy}"></canvas>
+        <span class="cot-pct" style="color:${col};font-weight:500;font-size:16px;letter-spacing:-0.5px">${pctLabel}</span>
       </div>
     </div>`;
   }
@@ -1124,8 +1287,17 @@ async function renderCOT(){
     if(cotCharts[ccy])cotCharts[ccy].destroy();
     cotCharts[ccy]=new Chart(ctx2,{
       type:'doughnut',
-      data:{datasets:[{data:[d.longPct,d.shortPct],backgroundColor:['#00d084','#ff4466'],borderWidth:0,hoverOffset:0}]},
-      options:{cutout:'65%',plugins:{legend:{display:false},tooltip:{enabled:false}},animation:{duration:600}}
+      data:{datasets:[{
+        data:[d.longPct,d.shortPct],
+        backgroundColor:['#ffffff','#3b82f6'],
+        borderWidth:0,
+        hoverOffset:0
+      }]},
+      options:{
+        cutout:'70%',
+        plugins:{legend:{display:false},tooltip:{enabled:false}},
+        animation:{duration:600}
+      }
     });
   });
 }
