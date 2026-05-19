@@ -269,18 +269,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
       <div class="cot-pair" id="cot-panel"></div>
     </div>
 
-    <!-- COT Net Positions bar chart -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">COT Net Positions · Všechny měny</span>
-        <span class="card-meta" id="cot-bar-lbl"></span>
-      </div>
-      <div style="position:relative;height:220px">
-        <canvas id="cotBarChart" role="img" aria-label="COT Net Positions"></canvas>
-      </div>
-      <div id="cot-bar-dates" style="display:flex;gap:16px;margin-top:10px;justify-content:flex-end"></div>
-    </div>
-
     <!-- Seasonality -->
     <div class="card">
       <div class="card-header">
@@ -415,6 +403,22 @@ let pairsSort='default', pairsSortDir='desc';
 let CS={}, activePair='EUR/USD', currentTF='1W', histChart=null, cotCharts={}, seasChart=null, cotBarChart=null;
 let SEAS_DATA={}, currentSeasTF=10, seasGranularity="auto";
 let historyMode=false, historyDate=null, CS_LIVE={};
+let COT_DATA=null; // data z Google Sheets via /api/cot
+
+const BACKEND='http://localhost:3001';
+
+async function loadCOT(){
+  try{
+    const r=await fetch(BACKEND+'/api/cot');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const json=await r.json();
+    COT_DATA=json.cotData||null;
+    console.log('[COT] Načteno z Google Sheets:',Object.keys(COT_DATA||{}).join(', '));
+  }catch(e){
+    console.warn('[COT] Nelze načíst z /api/cot:',e.message);
+    COT_DATA=null;
+  }
+}
 
 async function api(path){
   const r=await fetch(SB+'/rest/v1/'+path,{headers:H});
@@ -566,12 +570,11 @@ async function loadAll(){
     ]);
     CS={};
     scores.forEach(r=>CS[r.currency]=r);
-    await loadSeasonality();
+    await Promise.all([loadSeasonality(), loadCOT()]);
     buildPairDropdown();
     renderScoreOverview();
     renderHistory();
     renderCOT();
-    renderCotBarChart();
     renderRankings();
     renderNews(events);
     renderRetailSentiment();
@@ -585,17 +588,24 @@ async function loadAll(){
 }
 
 async function loadSeasonality(){
-  // Stáhni všechna seasonality data najednou
+  // Stáhni všechna seasonality data — paginace kvůli limitu 1000 řádků
   try{
-    const rows=await api('seasonality_data?select=pair,week,month,avg_5y,avg_10y,avg_15y,bullish_pct_10y&order=pair.asc,week.asc,month.asc');
+    let allRows=[], offset=0;
+    const PAGE=1000;
+    while(true){
+      const batch=await api(`seasonality_data?select=pair,week,month,avg_5y,avg_10y,avg_15y,bullish_pct_10y&order=pair.asc,week.asc,month.asc&limit=${PAGE}&offset=${offset}`);
+      allRows=allRows.concat(batch);
+      if(batch.length<PAGE) break;
+      offset+=PAGE;
+    }
+    console.log('[SEAS] Načteno řádků:',allRows.length);
     SEAS_DATA={};
-    rows.forEach(r=>{
+    allRows.forEach(r=>{
       if(!SEAS_DATA[r.pair]) SEAS_DATA[r.pair]=[];
-      // Týdenní data mají week, měsíční mají month
-      const idx = r.week ?? r.month;
+      const idx=r.week??r.month;
       SEAS_DATA[r.pair][idx]=r;
     });
-    // Přidej seasonality skóre do CS pro Score Overview
+    console.log('[SEAS] Párů:',Object.keys(SEAS_DATA).join(', '));
     injectSeasonalScore();
   }catch(e){
     console.warn('Seasonality data nedostupná:',e);
@@ -948,7 +958,6 @@ function onPairChange(){
   renderScoreOverview();
   renderHistory();
   renderCOT();
-  renderCotBarChart();
   renderRetailSentiment();
   renderSeasonality();
   renderCurrencyEvents();
@@ -1253,69 +1262,71 @@ function setTF(tf,btn){
 }
 
 async function renderCotBarChart(){
-  const [a,b]=activePair.split('/');
   const lbl=document.getElementById('cot-bar-lbl');
   const datesEl=document.getElementById('cot-bar-dates');
+  const ctx=document.getElementById('cotBarChart')?.getContext('2d');
+  if(!ctx) return;
+  if(cotBarChart){cotBarChart.destroy();cotBarChart=null;}
 
   try{
-    const [rowsA,rowsB]=await Promise.all([
-      api(`economic_events?currency=eq.${a}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`),
-      api(`economic_events?currency=eq.${b}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`)
-    ]);
+    // Pořadí měn pro graf
+    const CCY_ORDER=['USD','EUR','GBP','JPY','CAD','AUD','NZD','CHF'];
 
-    const fmtDate=d=>{
-      if(!d) return '—';
-      return new Date(d).toLocaleDateString('cs-CZ',{day:'numeric',month:'numeric',year:'numeric'});
-    };
-    const fmtNet=v=>v==null?'—':`${v>0?'+':''}${Math.round(v).toLocaleString('cs-CZ')}`;
-    const toNum=v=>v==null?null:parseFloat(v);
+    let labels=[], pctData=[], netNewData=[], netOldData=[], dateNew='', dateOld='';
 
-    // index 0 = nejnovější, index 1 = starší
-    const netA_new=toNum(rowsA[0]?.actual);
-    const netA_old=toNum(rowsA[1]?.actual);
-    const netB_new=toNum(rowsB[0]?.actual);
-    const netB_old=toNum(rowsB[1]?.actual);
+    if(COT_DATA&&Object.keys(COT_DATA).length>0){
+      // Zobraz všechny měny seřazené, procentuální změna
+      CCY_ORDER.forEach(ccy=>{
+        const d=COT_DATA[ccy];
+        if(!d) return;
+        labels.push(ccy);
+        pctData.push(d.changePct??0);
+        netNewData.push(d.netNew??null);
+        netOldData.push(d.netOld??null);
+      });
+      const first=COT_DATA[Object.keys(COT_DATA)[0]];
+      dateNew=first?.dateNew||'';
+      dateOld=first?.datePrev||'';
+    } else {
+      // Fallback: načti z Supabase pro aktivní pár
+      const[a,b]=activePair.split('/');
+      const[rowsA,rowsB]=await Promise.all([
+        api(`economic_events?currency=eq.${a}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`),
+        api(`economic_events?currency=eq.${b}&event_type=eq.cot&order=event_datetime.desc&limit=2&select=currency,actual,event_datetime`)
+      ]);
+      const toNum=v=>v==null?null:parseFloat(v);
+      [[a,rowsA],[b,rowsB]].forEach(([ccy,rows])=>{
+        const nNew=toNum(rows[0]?.actual), nOld=toNum(rows[1]?.actual);
+        labels.push(ccy);
+        netNewData.push(nNew); netOldData.push(nOld);
+        pctData.push((nOld&&nOld!==0)?Math.round((nNew-nOld)/Math.abs(nOld)*1000)/10:0);
+      });
+      dateNew=rowsA[0]?.event_datetime||'';
+      dateOld=rowsA[1]?.event_datetime||'';
+    }
 
-    const dateNew=rowsA[0]?.event_datetime||rowsB[0]?.event_datetime;
-    const dateOld=rowsA[1]?.event_datetime||rowsB[1]?.event_datetime;
-
-    // Long (net>=0) = bílá, Short (net<0) = modrá — stejné jako donuts
-    const col=(net,dim)=>{
-      if(net==null) return 'rgba(100,100,100,0.15)';
-      if(net>=0) return dim?'rgba(228,228,231,0.3)':'#e4e4e7';
-      return dim?'rgba(59,130,246,0.3)':'#3b82f6';
-    };
-
-    const ctx=document.getElementById('cotBarChart')?.getContext('2d');
-    if(!ctx) return;
-    if(cotBarChart){cotBarChart.destroy();cotBarChart=null;}
+    // Barvy: zelená = kladná změna, červená = záporná
+    const barColors=pctData.map(v=>
+      v>0?'rgba(0,208,132,0.75)':v<0?'rgba(255,68,102,0.75)':'rgba(100,100,100,0.3)'
+    );
+    const borderColors=pctData.map(v=>
+      v>0?'#00d084':v<0?'#ff4466':'#666'
+    );
 
     cotBarChart=new Chart(ctx,{
       type:'bar',
       data:{
-        labels:[a,b],
-        datasets:[
-          {
-            label:fmtDate(dateOld)+' (starší)',
-            data:[netA_old,netB_old],
-            backgroundColor:[col(netA_old,true),col(netB_old,true)],
-            borderColor:[col(netA_old,false),col(netB_old,false)],
-            borderWidth:1,
-            borderRadius:4,
-            barPercentage:0.5,
-            categoryPercentage:0.65,
-          },
-          {
-            label:fmtDate(dateNew)+' (nové)',
-            data:[netA_new,netB_new],
-            backgroundColor:[col(netA_new,false),col(netB_new,false)],
-            borderColor:[col(netA_new,false),col(netB_new,false)],
-            borderWidth:1,
-            borderRadius:4,
-            barPercentage:0.5,
-            categoryPercentage:0.65,
-          }
-        ]
+        labels,
+        datasets:[{
+          label:'Procentuální změna COT',
+          data:pctData,
+          backgroundColor:barColors,
+          borderColor:borderColors,
+          borderWidth:1,
+          borderRadius:4,
+          barPercentage:0.6,
+          categoryPercentage:0.8,
+        }]
       },
       options:{
         responsive:true,
@@ -1326,21 +1337,28 @@ async function renderCotBarChart(){
             backgroundColor:'#18181b',
             borderColor:'rgba(255,255,255,0.08)',
             borderWidth:0.5,
-            titleColor:'#71717a',
+            titleColor:'#a1a1aa',
             bodyColor:'#e4e4e7',
             callbacks:{
-              title:c=>`${c[0].label} · ${c[0].dataset.label}`,
+              title:c=>`${c[0].label} · COT změna`,
               label:c=>{
-                const v=c.raw;
-                if(v==null) return 'Žádná data';
-                return`Net: ${fmtNet(v)} ${v>=0?'(Long)':'(Short)'}`;
+                const ccy=c.label;
+                const d=COT_DATA?.[ccy];
+                const pct=c.raw;
+                const lines=[`Změna: ${pct>0?'+':''}${pct}%`];
+                if(d){
+                  const fmtN=v=>v!=null?`${v>0?'+':''}${Math.round(v).toLocaleString('cs-CZ')}`:'—';
+                  lines.push(`Staré: ${fmtN(d.netOld)}`);
+                  lines.push(`Nové:  ${fmtN(d.netNew)}`);
+                }
+                return lines;
               }
             }
           }
         },
         scales:{
           x:{
-            ticks:{color:'#71717a',font:{size:14,family:'JetBrains Mono',weight:'600'}},
+            ticks:{color:'#71717a',font:{size:12,family:'JetBrains Mono',weight:'600'}},
             grid:{display:false},
             border:{color:'transparent'}
           },
@@ -1348,7 +1366,7 @@ async function renderCotBarChart(){
             ticks:{
               color:'#3f3f46',
               font:{size:9,family:'JetBrains Mono'},
-              callback:v=>Math.abs(v)>=1000?(v/1000).toFixed(0)+'K':v
+              callback:v=>`${v>0?'+':''}${v}%`
             },
             grid:{color:'rgba(255,255,255,0.03)'},
             border:{color:'transparent'}
@@ -1357,20 +1375,22 @@ async function renderCotBarChart(){
       }
     });
 
-    if(lbl) lbl.textContent=activePair+' · Net pozice spekulantů';
+    const fmtD=d=>{
+      if(!d) return '—';
+      if(String(d).match(/^\d{1,2}\.\d{1,2}\.\d{4}$/)) return d;
+      try{return new Date(d).toLocaleDateString('cs-CZ',{day:'numeric',month:'numeric',year:'numeric'});}catch{return d;}
+    };
+
+    if(lbl) lbl.textContent=`Všechny měny · Δ% (${fmtD(dateOld)} → ${fmtD(dateNew)})`;
     if(datesEl){
       datesEl.innerHTML=`
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text3)">
-          <div style="width:10px;height:10px;border-radius:2px;background:rgba(228,228,231,0.3);border:0.5px solid #e4e4e7"></div>
-          ${fmtDate(dateOld)} · starší
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--green)">
+          <div style="width:10px;height:10px;border-radius:2px;background:rgba(0,208,132,0.75)"></div>
+          Spekulanti přidali long pozice
         </div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text2)">
-          <div style="width:10px;height:10px;border-radius:2px;background:#e4e4e7"></div>
-          ${fmtDate(dateNew)} · nejnovější
-        </div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--text3)">
-          <div style="width:10px;height:10px;border-radius:2px;background:#3b82f6"></div>
-          Short (net záporný)
+        <div style="display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--red)">
+          <div style="width:10px;height:10px;border-radius:2px;background:rgba(255,68,102,0.75)"></div>
+          Spekulanti přidali short pozice
         </div>`;
     }
   }catch(e){
@@ -1383,38 +1403,48 @@ async function renderCOT(){
   document.getElementById('cot-pair-lbl').textContent=activePair;
   const panel=document.getElementById('cot-panel');
 
-  // Načti reálná COT % z event_scores detail
-  async function getCotDetail(ccy){
-    try{
-      const rows=await api(
-        `economic_events?currency=eq.${ccy}&event_type=eq.cot&order=event_datetime.desc&limit=1&select=actual,forecast,previous`
-      );
-      if(rows.length){
-        const r=rows[0];
-        const lp=r.forecast??50;
-        return{
-          longPct: lp,
-          shortPct: Math.round((100-lp)*10)/10,
-          netPos: r.actual??0
-        };
-      }
-    }catch(e){}
-    return{longPct:50,shortPct:50,netPos:0};
+  // Získej COT data pro měnu — přednostně z Google Sheets
+  function getCotDetail(ccy){
+    if(COT_DATA&&COT_DATA[ccy]){
+      const d=COT_DATA[ccy];
+      return{ changePct: d.changePct??0, netNew: d.netNew??0, netOld: d.netOld??0 };
+    }
+    return null; // žádná data
   }
 
-  const[da,db]=await Promise.all([getCotDetail(a),getCotDetail(b)]);
+  const da=getCotDetail(a);
+  const db=getCotDetail(b);
+
+  // Normalizace: největší absolutní změna = 100% oblouku
+  const allPcts=[da,db].filter(Boolean).map(d=>Math.abs(d.changePct));
+  const maxPct=Math.max(...allPcts,1);
 
   function cotItem(ccy,d){
-    const col = d.longPct >= d.shortPct ? '#ffffff' : '#3b82f6';
-    const pctLabel = d.longPct >= d.shortPct ? d.longPct+'%' : d.shortPct+'%';
+    if(!d){
+      // Žádná data
+      return`<div class="cot-item">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span class="cot-title">COT · ${ccy}</span>
+        </div>
+        <div class="cot-canvas-wrap">
+          <canvas id="cot-${ccy}" width="160" height="160"></canvas>
+          <span class="cot-pct" style="color:var(--text3);font-size:13px">Načítám…</span>
+        </div>
+      </div>`;
+    }
+    const pct=d.changePct;
+    const isPos=pct>=0;
+    const col=isPos?'var(--green)':'var(--red)';
+    const sign=isPos?'+':'';
+    const label=`${sign}${Math.round(pct*10)/10}%`;
     return`<div class="cot-item">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span class="cot-title">COT · ${ccy}</span>
-        <div class="cot-legend"><span class="lg">Long</span><span class="sh">Short</span></div>
+        <span style="font-size:9px;font-family:var(--mono);color:var(--text3)">Δ týden</span>
       </div>
       <div class="cot-canvas-wrap">
         <canvas id="cot-${ccy}" width="160" height="160" role="img" aria-label="COT ${ccy}"></canvas>
-        <span class="cot-pct" style="color:${col};font-weight:500;font-size:16px;letter-spacing:-0.5px">${pctLabel}</span>
+        <span class="cot-pct" style="color:${col};font-weight:600;font-size:18px;letter-spacing:-0.5px">${label}</span>
       </div>
     </div>`;
   }
@@ -1425,18 +1455,60 @@ async function renderCOT(){
     const ctx2=document.getElementById('cot-'+ccy)?.getContext('2d');
     if(!ctx2)return;
     if(cotCharts[ccy])cotCharts[ccy].destroy();
+
+    if(!d){
+      // Prázdný šedý donut
+      cotCharts[ccy]=new Chart(ctx2,{
+        type:'doughnut',
+        data:{datasets:[{data:[1],backgroundColor:['rgba(255,255,255,0.05)'],borderWidth:0}]},
+        options:{cutout:'70%',plugins:{legend:{display:false},tooltip:{enabled:false}}}
+      });
+      return;
+    }
+
+    const pct=d.changePct;
+    const isPos=pct>=0;
+    const filled=Math.min(Math.abs(pct)/maxPct,1)*100; // oblouk relativně k max
+    const empty=100-filled;
+    const activeCol=isPos?'#00d084':'#ff4466';
+    const bgCol=isPos?'rgba(0,208,132,0.12)':'rgba(255,68,102,0.12)';
+
+    const fmtNet=v=>v!=null?`${v>0?'+':''}${Math.round(v).toLocaleString('cs-CZ')}`:'—';
     cotCharts[ccy]=new Chart(ctx2,{
       type:'doughnut',
       data:{datasets:[{
-        data:[d.longPct,d.shortPct],
-        backgroundColor:['#ffffff','#3b82f6'],
+        data:[filled,empty],
+        backgroundColor:[activeCol,bgCol],
         borderWidth:0,
-        hoverOffset:0
+        hoverOffset:4
       }]},
       options:{
-        cutout:'70%',
-        plugins:{legend:{display:false},tooltip:{enabled:false}},
-        animation:{duration:600}
+        cutout:'72%',
+        plugins:{
+          legend:{display:false},
+          tooltip:{
+            enabled:true,
+            backgroundColor:'#1c1e22',
+            borderColor:'rgba(255,255,255,0.1)',
+            borderWidth:1,
+            titleColor:'#8b8f99',
+            bodyColor:'#e2e4e8',
+            padding:10,
+            callbacks:{
+              title:()=>`COT · ${ccy}`,
+              label:(item)=>{
+                if(item.dataIndex!==0) return null;
+                return [
+                  `Změna: ${d.changePct>0?'+':''}${d.changePct}%`,
+                  `Nové:  ${fmtNet(d.netNew)}`,
+                  `Staré: ${fmtNet(d.netOld)}`,
+                ];
+              },
+              filter:(item)=>item.dataIndex===0
+            }
+          }
+        },
+        animation:{duration:500}
       }
     });
   });
