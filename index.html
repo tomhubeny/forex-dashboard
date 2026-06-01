@@ -49,6 +49,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .status-dot{width:6px;height:6px;border-radius:50%;background:var(--text3)}
 .status-dot.ok{background:var(--green);animation:pulse 2s infinite}
 .status-dot.err{background:var(--red)}
+.status-dot.warn{background:var(--gold)}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 .status-text{font-size:11px;font-family:var(--mono);color:var(--text2)}
 .btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-family:var(--sans);font-size:12px;cursor:pointer;transition:all .15s}
@@ -215,6 +216,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
           onkeydown="onPairSearchKey(event)"
         />
         <span id="pair-search-clear" style="color:var(--text3);font-size:10px;cursor:pointer;display:none" onclick="clearPairSearch()">✕</span>
+        <span id="header-fav-star" onclick="toggleFavoriteCurrent()" title="Přidat do oblíbených"
+          style="font-size:15px;cursor:pointer;padding:0 2px;color:var(--text3);transition:color .15s;display:none">☆</span>
       </div>
       <div id="pair-suggestions" style="display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:180px;background:#1c1e22;border:1px solid rgba(255,255,255,0.1);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.5);z-index:999;max-height:280px;overflow-y:auto"></div>
     </div>
@@ -229,6 +232,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <span class="status-dot" id="sdot"></span>
     <span class="status-text" id="stext">Připojování...</span>
     <button class="btn" onclick="loadAll()">↻ Refresh</button>
+    <button class="btn" id="force-refresh-btn" onclick="forceRefresh()" title="Vynutit okamžité přenačtení z ForexFactory a přepočet scorů" style="background:rgba(240,180,41,0.12);border-color:rgba(240,180,41,0.3);color:var(--gold)">⚡ Force refresh</button>
   </div>
 </div>
 
@@ -336,27 +340,40 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
       <div style="font-size:22px;font-weight:700;color:var(--text);letter-spacing:-.03em">Major <span style="color:var(--gold)">Pairs</span></div>
       <div style="font-size:12px;color:var(--text3);margin-top:4px">Fundamental analysis · <span style="color:var(--gold)">klikni na pár</span> pro otevření Analyzeru</div>
     </div>
-    <div style="display:flex;gap:32px;text-align:center">
-      <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Měny</div><div style="font-size:26px;font-weight:700;font-family:var(--mono);color:var(--text)">8</div></div>
-      <div style="width:1px;background:var(--border)"></div>
-      <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Páry</div><div style="font-size:26px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="pairs-pair-count">—</div></div>
+    <div style="display:flex;gap:16px;align-items:center">
+      <div style="display:flex;gap:32px;text-align:center">
+        <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Měny</div><div style="font-size:26px;font-weight:700;font-family:var(--mono);color:var(--text)">8</div></div>
+        <div style="width:1px;background:var(--border)"></div>
+        <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:4px">Páry</div><div style="font-size:26px;font-weight:700;font-family:var(--mono);color:var(--gold)" id="pairs-pair-count">—</div></div>
+      </div>
+      <button id="pairs-signal-filter" onclick="pairsSignalFilter=!pairsSignalFilter;renderPairsTable()" style="margin-left:8px;padding:6px 14px;border-radius:6px;border:1px solid var(--text3);background:transparent;color:var(--text3);font-size:11px;font-family:var(--mono);cursor:pointer;white-space:nowrap">◇ Signály (0)</button>
     </div>
   </div>
-  <!-- Top row: Strongest + Weakest -->
+  <!-- Oblíbené páry (zobrazí se pouze pokud existují) -->
+  <div id="favorites-section" style="display:none;margin-bottom:14px">
+    <div class="card" style="padding:18px 20px">
+      <div class="card-header" style="margin-bottom:14px">
+        <span class="card-title" style="font-size:12px;display:flex;align-items:center;gap:6px"><span style="font-size:15px">★</span> Oblíbené páry</span>
+        <span class="card-meta">klikni ★ pro odebrání</span>
+      </div>
+      <div id="rank-favorites" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:2px"></div>
+    </div>
+  </div>
+  <!-- Top row: Signal páry (nahrazuje Strongest + Weakest) -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
     <div class="card" style="padding:18px 20px">
       <div class="card-header" style="margin-bottom:14px">
-        <span class="card-title" style="font-size:12px;display:flex;align-items:center;gap:6px"><span style="color:var(--green);font-size:16px">▲</span> Strongest pairs</span>
-        <span class="card-meta">skóre · 30 dní</span>
+        <span class="card-title" style="font-size:12px;display:flex;align-items:center;gap:6px"><span style="color:#4caf93;font-size:16px">▲</span> Long signály</span>
+        <span class="card-meta">fundamenty + COT + retail</span>
       </div>
-      <div class="rank-list" id="rank-bull"></div>
+      <div id="rank-long"><div class="empty">Žádné signály</div></div>
     </div>
     <div class="card" style="padding:18px 20px">
       <div class="card-header" style="margin-bottom:14px">
-        <span class="card-title" style="font-size:12px;display:flex;align-items:center;gap:6px"><span style="color:var(--red);font-size:16px">▼</span> Weakest pairs</span>
-        <span class="card-meta">skóre · 30 dní</span>
+        <span class="card-title" style="font-size:12px;display:flex;align-items:center;gap:6px"><span style="color:#e05c5c;font-size:16px">▼</span> Short signály</span>
+        <span class="card-meta">fundamenty + COT + retail</span>
       </div>
-      <div class="rank-list" id="rank-bear"></div>
+      <div id="rank-short"><div class="empty">Žádné signály</div></div>
     </div>
   </div>
   <!-- Bottom row: Top movers full width -->
@@ -368,6 +385,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div class="rank-list" id="rank-movers" style="display:grid;grid-template-columns:1fr 1fr;gap:2px"></div>
   </div>
 </div>
+
 </div>
 
 <!-- PAGE: INPUT -->
@@ -458,10 +476,13 @@ const CANONICAL_PAIRS={'USD/EUR':'EUR/USD','USD/GBP':'GBP/USD','USD/AUD':'AUD/US
 
 const CEVT_LIMIT={a:10,b:10};
 let pairsSort='default', pairsSortDir='desc';
-let CS={}, activePair='', currentTF='1W', histChart=null, cotCharts={}, seasChart=null, cotBarChart=null;
+let CS={}, CS_PREV={}, activePair='', currentTF='1W', histChart=null, cotCharts={}, seasChart=null, cotBarChart=null;
 let SEAS_DATA={}, currentSeasTF=10, seasGranularity="auto";
 let historyMode=false, historyDate=null, CS_LIVE={};
 let COT_DATA=null; // data z Google Sheets via /api/cot
+let RETAIL_DATA={}; // retail sentiment pro páry: { 'EURUSD': {longPct, shortPct}, ... }
+let COT_EXTREMES={}; // percentilové hladiny non-commercial pozic (z Pine Script dat)
+let pairsSignalFilter=false; // filtr pouze signálové páry
 
 const BACKEND='http://localhost:3001';
 
@@ -476,6 +497,52 @@ async function loadCOT(){
     console.warn('[COT] Nelze načíst z /api/cot:',e.message);
     COT_DATA=null;
   }
+}
+
+async function loadRetailData(){
+  try{
+    // Načti nejnovější retail sentiment pro všechny páry najednou
+    const rows=await api('economic_events?event_type=eq.retail&order=event_datetime.desc&limit=300&select=actual,forecast,event_name,event_datetime');
+    RETAIL_DATA={};
+    // Vezmi nejnovější záznam pro každý pár (rows jsou desc, první výskyt = nejnovější)
+    rows.forEach(r=>{
+      const m=(r.event_name||'').match(/([A-Z]{6})$/);
+      if(!m) return;
+      const sym=m[1]; // např. 'EURUSD'
+      if(!RETAIL_DATA[sym]) RETAIL_DATA[sym]={longPct:r.actual??50,shortPct:r.forecast??50};
+    });
+  }catch(e){
+    console.warn('[RETAIL] Nelze načíst retail data:',e.message);
+  }
+}
+
+// Vrátí 'long', 'short' nebo null podle shody všech 3 podmínek
+function getSignal(base, quote){
+  // 1. Fundamenty
+  function _cs(r){return r?(r.score_cpi||0)+(r.score_gdp||0)+(r.score_labor||0)+(r.score_mfg_pmi||0)+(r.score_svc_pmi||0)+(r.score_rate||0)+(r.score_retail||0):0;}
+  const fundDiff=_cs(CS[base])-_cs(CS[quote]);
+
+  // 2. COT
+  const cotBase=COT_DATA?.[base]?.changePct??null;
+  const cotQuote=COT_DATA?.[quote]?.changePct??null;
+  if(cotBase===null||cotQuote===null) return null;
+
+  // 3. Retail sentiment pro pár (base+quote nebo quote+base)
+  const sym1=(base+quote).toUpperCase();
+  const sym2=(quote+base).toUpperCase();
+  const retail=RETAIL_DATA[sym1]||RETAIL_DATA[sym2]||null;
+  if(!retail) return null;
+
+  // Pokud je retail pro inverzní pár, prohoď long/short
+  const isInverse=!RETAIL_DATA[sym1]&&!!RETAIL_DATA[sym2];
+  const retailLong=isInverse?retail.shortPct:retail.longPct;
+  const retailShort=isInverse?retail.longPct:retail.shortPct;
+
+  // LONG: fundamenty kladné + COT base kladné + COT quote záporné + retail většina short
+  if(fundDiff>0 && cotBase>0 && cotQuote<0 && retailShort>retailLong) return 'long';
+  // SHORT: fundamenty záporné + COT base záporné + COT quote kladné + retail většina long
+  if(fundDiff<0 && cotBase<0 && cotQuote>0 && retailLong>retailShort) return 'short';
+  return null;
 }
 
 async function api(path){
@@ -497,7 +564,7 @@ function tfDays(tf){return tf==='1W'?7:tf==='1M'?30:tf==='3M'?90:180}
 
 function setStatus(s,t){
   const d=document.getElementById('sdot');
-  d.className='status-dot'+(s==='ok'?' ok':s==='err'?' err':'');
+  d.className='status-dot'+(s==='ok'?' ok':s==='err'?' err':s==='warn'?' warn':'');
   document.getElementById('stext').textContent=t;
 }
 
@@ -513,29 +580,27 @@ async function renderCurrencyEvents(){
 
   async function fetchEventsForCcy(ccy,limit){
     try{
+      // Vyloučit Myfxbook/Sentiment server-side – jinak zaplní celý limit
       const events=await api(
-        `economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type,tone`
+        `economic_events?currency=eq.${ccy}&event_type=not.in.(cot,sentiment)&event_name=not.ilike.*Myfxbook*&event_name=not.ilike.*Sentiment*&order=event_datetime.desc&limit=100&select=id,event_name,event_datetime,currency,actual,forecast,event_type,tone`
       );
       if(!events.length) return [];
       const ids=events.map(e=>e.id).join(',');
       const scores=await api(`event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`);
       const scoreMap={};
       scores.forEach(s=>scoreMap[s.event_id]=s);
+      const LOW_KW=['ppi','rpi','hpi','bond auction','member speaks','member barr','member paulson',
+                    'hearings','crude oil','trade balance','new home sales','existing home',
+                    'building permits','housing starts','consumer confidence','business confidence',
+                    'claimant count change','treasury'];
       return events.map(e=>({...e,...scoreMap[e.id]}))
-        .filter(e => {
-          if(!e.actual) return false;
-          // Vyloučit low-impact zprávy podle sloupce tone
-          const t = (e.tone||'').toLowerCase();
-          if(t === 'low') return false;
-          const allowed = ['cpi','gdp','labor','mfg_pmi','svc_pmi','rate','retail','industrial','labor_claims'];
-          if(!allowed.includes(e.event_type)) return false;
-          // Záloha: vyloučit known low-impact zprávy podle názvu (pokud tone chybí)
-          const n = (e.event_name||'').toLowerCase();
-          const low = ['ppi','rpi','hpi','bond auction','member speaks','member barr','member paulson',
-                       'hearings','crude oil','trade balance','business nz','claimant count'];
-          if(low.some(kw => n.includes(kw))) return false;
-          return true;
-        });
+        .filter(e=>{
+          if(!e.actual && e.actual!==0) return false;      // musí mít actual hodnotu
+          if((e.tone||'').toLowerCase()==='low') return false; // vyloučit low-impact
+          const n=(e.event_name||'').toLowerCase();
+          return !LOW_KW.some(kw=>n.includes(kw));
+        })
+        .slice(0,limit);
     }catch(e){return[];}
   }
 
@@ -589,24 +654,27 @@ async function loadMoreEvents(ccy,limitKey){
 
   async function fetchEventsForCcy(ccy,limit){
     try{
-      const events=await api(`economic_events?currency=eq.${ccy}&event_type=neq.retail&event_type=neq.cot&order=event_datetime.desc&limit=${limit}&select=id,event_name,event_datetime,currency,actual,forecast,event_type,tone`);
+      // Vyloučit Myfxbook/Sentiment server-side – jinak zaplní celý limit
+      const events=await api(
+        `economic_events?currency=eq.${ccy}&event_type=not.in.(cot,sentiment)&event_name=not.ilike.*Myfxbook*&event_name=not.ilike.*Sentiment*&order=event_datetime.desc&limit=100&select=id,event_name,event_datetime,currency,actual,forecast,event_type,tone`
+      );
       if(!events.length) return[];
       const ids=events.map(e=>e.id).join(',');
       const scores=await api(`event_scores?event_id=in.(${ids})&select=event_id,score,bias&order=scored_at.desc`);
       const scoreMap={};
       scores.forEach(s=>scoreMap[s.event_id]=s);
+      const LOW_KW=['ppi','rpi','hpi','bond auction','member speaks','member barr','member paulson',
+                    'hearings','crude oil','trade balance','new home sales','existing home',
+                    'building permits','housing starts','consumer confidence','business confidence',
+                    'claimant count change','treasury'];
       return events.map(e=>({...e,...scoreMap[e.id]}))
-        .filter(e => {
-          if(e.actual == null) return false;
-          const t = (e.tone||'').toLowerCase();
-          if(t === 'low') return false;
-          if(!['cpi','gdp','labor','mfg_pmi','svc_pmi','rate','retail','industrial','labor_claims'].includes(e.event_type)) return false;
-          const n = (e.event_name||'').toLowerCase();
-          const low = ['ppi','rpi','hpi','bond auction','member speaks','member barr','member paulson',
-                       'hearings','crude oil','trade balance','business nz','claimant count'];
-          if(low.some(kw => n.includes(kw))) return false;
-          return true;
-        });
+        .filter(e=>{
+          if(!e.actual && e.actual!==0) return false;
+          if((e.tone||'').toLowerCase()==='low') return false;
+          const n=(e.event_name||'').toLowerCase();
+          return !LOW_KW.some(kw=>n.includes(kw));
+        })
+        .slice(0,limit);
     }catch(e){return[];}
   }
 
@@ -669,28 +737,19 @@ async function computeTotalsFromEventScores(){
 async function loadAll(){
   setStatus('loading','Načítám...');
   try{
-    const[scores,events,computedTotals]=await Promise.all([
+    const[scores,events,prevRecs]=await Promise.all([
       api('v_current_scores?select=*&order=total_score.desc'),
       api('event_scores?select=*,economic_events(event_name,event_datetime,currency,actual,forecast)&order=scored_at.desc&limit=20'),
-      computeTotalsFromEventScores()
+      api('currency_scores?select=currency,calculated_at,score_cpi,score_gdp,score_labor,score_mfg_pmi,score_svc_pmi,score_rate,score_retail&order=calculated_at.desc&limit=100'),
     ]);
     CS={};
-    // Nejdřív načti z v_current_scores (může být prázdné po resetu)
+    // Načti z v_current_scores (server.js – zdrojem pravdy pro total_score)
+    // total_score = součet dnešních FF event skóre (konzistentní s grafem history)
     scores.forEach(r=>{ CS[r.currency]=r; });
-    // Přidej/přepiš total_score z Python event_scores (zdrojem pravdy je event_scores)
-    // Pokud v_current_scores chybí záznam pro měnu, vytvoří nový z computedTotals
-    const CCYS=['USD','EUR','GBP','JPY','AUD','NZD','CAD','CHF'];
-    CCYS.forEach(ccy=>{
-      const total=computedTotals[ccy];
-      if(total===undefined) return;
-      if(CS[ccy]){
-        CS[ccy]=Object.assign({},CS[ccy],{total_score:total});
-      } else {
-        // v_current_scores neměl tento záznam — vytvoříme ho z event_scores
-        CS[ccy]={currency:ccy, total_score:total, delta_24h:0};
-      }
-    });
-    await Promise.all([loadSeasonality(), loadCOT()]);
+    // Načti předchozí záznamy (pro 24h delta v Major Pairs — stejná metoda jako graf)
+    CS_PREV={};
+    {const seen={};prevRecs.forEach(r=>{if(!seen[r.currency]){seen[r.currency]=1;}else if(seen[r.currency]===1){CS_PREV[r.currency]=r;seen[r.currency]++;}});}
+    await Promise.all([loadSeasonality(), loadCOT(), loadRetailData()]);
     // Nastav score_cot do CS z načtených COT dat (changePct → -1/0/+1)
     if(COT_DATA){
       Object.keys(COT_DATA).forEach(ccy=>{
@@ -705,7 +764,7 @@ async function loadAll(){
     // Pair-specific renders pouze pokud je zvolen pár
     if(activePair){
       renderScoreOverview();
-      renderHistory();
+      await renderHistory();
       renderCOT();
       renderRetailSentiment();
       renderSeasonality();
@@ -721,6 +780,26 @@ async function loadAll(){
     setStatus('ok',new Date().toLocaleTimeString('cs-CZ')+' · live');
   }catch(e){
     setStatus('err','Chyba: '+e.message);
+  }
+}
+
+async function forceRefresh(){
+  const btn=document.getElementById('force-refresh-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Načítám...'; }
+  setStatus('loading','Force refresh...');
+  try{
+    const r=await fetch('http://localhost:3001/api/refresh',{method:'POST'});
+    const j=await r.json();
+    if(j.ok){
+      setStatus('ok','Refresh dokončen · '+new Date().toLocaleTimeString('cs-CZ'));
+      await loadAll();
+    } else {
+      setStatus('warn', j.msg);
+    }
+  } catch(e){
+    setStatus('err','Chyba: '+e.message);
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='⚡ Force refresh'; }
   }
 }
 
@@ -743,56 +822,11 @@ async function loadSeasonality(){
       SEAS_DATA[r.pair][idx]=r;
     });
     console.log('[SEAS] Párů:',Object.keys(SEAS_DATA).join(', '));
-    injectSeasonalScore();
   }catch(e){
     console.warn('Seasonality data nedostupná:',e);
   }
 }
 
-function injectSeasonalScore(){
-  const now=new Date();
-  // ISO week number - správný výpočet
-  const getISOWeek=(d)=>{
-    const date=new Date(d);
-    date.setHours(0,0,0,0);
-    date.setDate(date.getDate()+3-(date.getDay()+6)%7);
-    const week1=new Date(date.getFullYear(),0,4);
-    return 1+Math.round(((date-week1)/86400000-3+(week1.getDay()+6)%7)/7);
-  };
-  const curWeek=getISOWeek(now);
-  const curMonth=now.getMonth()+1;
-
-  Object.keys(CS).forEach(ccy=>{
-    let scores=[];
-    const MAJOR_BASE={'EUR':['EURUSD','EURGBP','EURJPY','EURCHF','EURAUD','EURCAD','EURNZD'],
-      'GBP':['GBPUSD','GBPJPY','GBPCHF','GBPAUD','GBPCAD','GBPNZD'],
-      'USD':['EURUSD','GBPUSD','AUDUSD','NZDUSD','USDJPY','USDCHF','USDCAD'],
-      'JPY':['USDJPY','EURJPY','GBPJPY','AUDJPY','CADJPY','CHFJPY','NZDJPY'],
-      'AUD':['AUDUSD','AUDCAD','AUDCHF','AUDNZD','AUDJPY','EURAUD','GBPAUD'],
-      'CAD':['USDCAD','EURCAD','GBPCAD','AUDCAD','NZDCAD','CADCHF','CADJPY'],
-      'NZD':['NZDUSD','EURNZD','GBPNZD','AUDNZD','NZDCAD','NZDCHF','NZDJPY'],
-      'CHF':['USDCHF','EURCHF','GBPCHF','AUDCHF','CADCHF','NZDCHF','CHFJPY'],
-    };
-    const pairs=MAJOR_BASE[ccy]||[];
-    pairs.forEach(p=>{
-      // Detekuj týdenní vs měsíční data
-      const isWeekly=SEAS_DATA[p]&&SEAS_DATA[p].filter(Boolean).length>15;
-      const idx=isWeekly?curWeek:curMonth;
-      const d=SEAS_DATA[p]?.[idx];
-      if(!d) return;
-      const isBase=p.startsWith(ccy);
-      const avg=isBase?d.avg_10y:-d.avg_10y;
-      const sc=avg>0.15?1:avg<-0.15?-1:0;
-      scores.push(sc);
-    });
-    if(scores.length){
-      const avg=scores.reduce((a,b)=>a+b,0)/scores.length;
-      CS[ccy].score_seasonal=Math.round(avg);
-    }else{
-      CS[ccy].score_seasonal=null;
-    }
-  });
-}
 
 function setSeasTF(y,btn){
   currentSeasTF=y;
@@ -1094,6 +1128,26 @@ function selectPair(p){
   onPairChange();
 }
 
+function updateHeaderStar(){
+  const star=document.getElementById('header-fav-star');
+  if(!star) return;
+  if(!activePair){star.style.display='none';return;}
+  star.style.display='inline';
+  const isFav=FAVORITES.has(activePair);
+  star.textContent=isFav?'★':'☆';
+  star.style.color=isFav?'var(--gold)':'var(--text3)';
+  star.title=isFav?'Odebrat z oblíbených':'Přidat do oblíbených';
+}
+function toggleFavoriteCurrent(){
+  if(!activePair) return;
+  if(FAVORITES.has(activePair)) FAVORITES.delete(activePair); else FAVORITES.add(activePair);
+  saveFavorites();
+  updateHeaderStar();
+  // Obnov sekci oblíbených pokud je Major pairs stránka aktivní
+  const pairsPage=document.getElementById('page-pairs');
+  if(pairsPage&&!pairsPage.classList.contains('hidden')) renderRankings();
+}
+
 function onPairChange(){
   activePair=document.getElementById('pair-dropdown').value;
   if(!activePair){
@@ -1105,6 +1159,7 @@ function onPairChange(){
     document.getElementById('main-bias').childNodes[0].textContent='— ';
     document.getElementById('main-arrow').textContent='';
     document.getElementById('main-24h').textContent='— 24h';
+    updateHeaderStar();
     return;
   }
   renderScoreOverview();
@@ -1114,6 +1169,7 @@ function onPairChange(){
   renderSeasonality();
   renderCurrencyEvents();
   document.getElementById('cot-pair-lbl').textContent=activePair;
+  updateHeaderStar();
 }
 
 
@@ -1160,23 +1216,23 @@ function renderScoreOverview(){
     ['GDP',           'score_gdp'],
     ['Inflation',     'score_cpi'],
     ['Interest Rates','score_rate'],
-    ['Labor',         'score_labor'],
-    ['Labor Claims',  'score_labor_claims'],
+    ['Employment',    'score_labor'],   // NFP + ADP + Unemployment Claims + Jobless
     ['Mfg PMI',       'score_mfg_pmi'],
     ['Svc PMI',       'score_svc_pmi'],
     ['Retail Sales',  'score_retail'],
-    ['Industrial',    'score_industrial'],
     ['Seasonality',   '_seasonal_pair'],
   ];
   const el=document.getElementById('score-overview');
   if(!sa){el.innerHTML='<div class="empty">Žádná data</div>';return;}
 
+  // Spočítej diffs pro každou komponentu + průběžně sumujem Final Score
+  let finalSum=0;
   el.innerHTML=types.map(([l,k])=>{
-    let display, cls;
+    let display, cls, numVal=null;
 
     if(k==='_seasonal_pair'){
-      // Seasonality přímo pro pár
       if(seasScore!=null){
+        numVal=seasScore;
         display=(seasScore>0?'+':'')+seasScore;
         cls=seasScore>0?'pos-bg g':seasScore<0?'neg-bg r':'neu-bg muted';
       } else {
@@ -1187,20 +1243,22 @@ function renderScoreOverview(){
       const vb=sb?sb[k]??null:null;
 
       if(va!=null && vb!=null){
-        const diff=Math.round((va-vb)*10)/10;
-        display=(diff>0?'+':'')+diff;
-        cls=diff>0?'pos-bg g':diff<0?'neg-bg r':'neu-bg muted';
+        numVal=Math.round((va-vb)*10)/10;
+        display=(numVal>0?'+':'')+numVal;
+        cls=numVal>0?'pos-bg g':numVal<0?'neg-bg r':'neu-bg muted';
       } else if(va!=null){
+        numVal=va;
         display=(va>0?'+':'')+va;
         cls=va>0?'pos-bg g':va<0?'neg-bg r':'neu-bg muted';
       } else if(vb!=null){
-        const inv=Math.round(-vb*10)/10;
-        display=(inv>0?'+':'')+inv;
-        cls=inv>0?'pos-bg g':inv<0?'neg-bg r':'neu-bg muted';
+        numVal=Math.round(-vb*10)/10;
+        display=(numVal>0?'+':'')+numVal;
+        cls=numVal>0?'pos-bg g':numVal<0?'neg-bg r':'neu-bg muted';
       } else {
         display='—'; cls='neu-bg muted';
       }
     }
+    if(numVal!==null) finalSum+=numVal;
 
     return`<div class="so-row">
       <span class="so-label">${l}</span>
@@ -1209,19 +1267,18 @@ function renderScoreOverview(){
   }).join('');
 
   if(sa&&sb){
-    const total=Math.round((sa.total_score-sb.total_score)*10)/10;
+    // Final Score = součet všech zobrazených komponent (konzistentní s tabulkou)
+    const total=Math.round(finalSum*10)/10;
     const fEl=document.getElementById('final-score');
     fEl.textContent=fmt(total);
     fEl.style.color=gc(total);
-    const d=Math.round(((sa.delta_24h||0)-(sb.delta_24h||0))*10)/10;
     const[bias,bcol,barrow]=biasInfo(total);
     document.getElementById('main-score').textContent=fmt(total);
     document.getElementById('main-score').style.color=gc(total);
     document.getElementById('main-bias').style.color=bcol;
     document.getElementById('main-bias').childNodes[0].textContent=bias+' ';
     document.getElementById('main-arrow').textContent=barrow;
-    document.getElementById('main-24h').textContent=(d>=0?'+':'')+d+' 24h';
-    document.getElementById('main-24h').style.color=gc(d);
+    // 24h se nastavuje v renderHistory z grafu — zde nepřepisuj
   }
 }
 
@@ -1303,25 +1360,113 @@ let _histDataA=[], _histDataB=[];
 async function renderHistory(){
   const[a,b]=activePair.split('/');
   const[ha,hb]=await Promise.all([
-    api(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=500&select=total_score,calculated_at`).then(r=>r.reverse()),
-    api(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=500&select=total_score,calculated_at`).then(r=>r.reverse())
+    api(`currency_scores?currency=eq.${a}&order=calculated_at.desc&limit=500&select=calculated_at,total_score,score_cpi,score_gdp,score_labor,score_mfg_pmi,score_svc_pmi,score_rate,score_retail`).then(r=>r.reverse()),
+    api(`currency_scores?currency=eq.${b}&order=calculated_at.desc&limit=500&select=calculated_at,total_score,score_cpi,score_gdp,score_labor,score_mfg_pmi,score_svc_pmi,score_rate,score_retail`).then(r=>r.reverse())
   ]);
   const cutoff=new Date(); cutoff.setDate(cutoff.getDate()-tfDays(currentTF));
-  const haF=ha.filter(r=>new Date(r.calculated_at)>=cutoff);
-  const hbF=hb.filter(r=>new Date(r.calculated_at)>=cutoff);
-  const len=Math.min(haF.length,hbF.length)||Math.min(ha.length,hb.length);
-  const haU=len>0&&haF.length>=len?haF:ha.slice(-Math.min(ha.length,hb.length));
-  const hbU=len>0&&hbF.length>=len?hbF:hb.slice(-Math.min(ha.length,hb.length));
+
+  // Indexuj oba záznamy po UTC datu
+  const haMap=new Map(ha.map(r=>[r.calculated_at.slice(0,10),r]));
+  const hbMap=new Map(hb.map(r=>[r.calculated_at.slice(0,10),r]));
+
+  // Primární timeline = datumy BASE měny v cutoff okně
+  const baseDates=[...haMap.keys()].filter(d=>new Date(d)>=cutoff).sort();
+  // Fallback: pokud base nemá nedávné záznamy, vezmi posledních 30 dostupných
+  const dates=baseDates.length>0?baseDates:[...haMap.keys()].sort().slice(-30);
+
+  // Quote: pro každý datum base vezmi přesný záznam NEBO carry-forward (poslední dostupný)
+  const hbSorted=[...hb].sort((x,y)=>x.calculated_at<y.calculated_at?-1:1);
+  function getQuoteFor(dateStr){
+    if(hbMap.has(dateStr)) return hbMap.get(dateStr);
+    // Nejnovější quote záznam před tímto datem
+    const dt=dateStr+'T23:59:59Z';
+    let best=null;
+    for(const r of hbSorted){ if(r.calculated_at<=dt) best=r; else break; }
+    return best||{total_score:0,calculated_at:dateStr+'T00:00:00Z'};
+  }
 
   // Ulož pro klik
-  _histDataA=haU.slice(-len);
-  _histDataB=hbU.slice(-len);
+  _histDataA=dates.map(d=>haMap.get(d));
+  _histDataB=dates.map(d=>getQuoteFor(d));
 
-  const labels=_histDataA.map(r=>{
-    const d=new Date(r.calculated_at);
-    return d.toLocaleDateString('cs-CZ',{month:'numeric',day:'numeric'});
+  const labels=dates.map(d=>{
+    const[,m,day]=d.split('-');
+    return `${parseInt(day)}. ${parseInt(m)}.`;
   });
-  const diff=_histDataA.map((r,i)=>Math.round((r.total_score-(_histDataB[i]?.total_score||0))*10)/10);
+
+  // COT offset (live, aktuální týdenní hodnota)
+  function _cotScoreH(ccy){
+    const pct=COT_DATA?.[ccy]?.changePct??null;
+    if(pct==null) return 0;
+    return pct>5?1:pct<-5?-1:0;
+  }
+  const cotDiff=_cotScoreH(a)-_cotScoreH(b);
+
+  // Seasonality per datum
+  const pairKeyH=(a+b).toUpperCase();
+  const isWeeklyH=!!(SEAS_DATA[pairKeyH]&&SEAS_DATA[pairKeyH].filter(Boolean).length>15);
+  function _getISOWeekH(d){
+    const dt=new Date(d); dt.setHours(0,0,0,0);
+    dt.setDate(dt.getDate()+3-(dt.getDay()+6)%7);
+    const w1=new Date(dt.getFullYear(),0,4);
+    return 1+Math.round(((dt-w1)/86400000-3+(w1.getDay()+6)%7)/7);
+  }
+  function _getSeasForDate(dateStr){
+    try{
+      const dt=new Date(dateStr+'T12:00:00Z');
+      const idx=isWeeklyH?_getISOWeekH(dt):dt.getUTCMonth()+1;
+      const row=SEAS_DATA[pairKeyH]?.[idx]??null;
+      const val=row?.avg_10y??null;
+      return val!=null?(val>0.15?1:val<-0.15?-1:0):0;
+    }catch{return 0;}
+  }
+
+  // Součet FF komponent z DB (stejná logika jako Score Overview badge)
+  function _compSum(r){
+    if(!r) return 0;
+    return (r.score_cpi||0)+(r.score_gdp||0)+(r.score_labor||0)
+          +(r.score_mfg_pmi||0)+(r.score_svc_pmi||0)+(r.score_rate||0)+(r.score_retail||0);
+  }
+
+  const diff=_histDataA.map((r,i)=>{
+    const compDiff=_compSum(r)-_compSum(_histDataB[i]);
+    const seasDiff=_getSeasForDate(dates[i]);
+    return Math.round((compDiff+cotDiff+seasDiff)*10)/10;
+  });
+
+  // Aktualizuj 24h badge přímo z grafu (konzistentní s novou komponentní logikou)
+  if(diff.length>=2){
+    const d24=Math.round((diff[diff.length-1]-diff[diff.length-2])*10)/10;
+    const el24=document.getElementById('main-24h');
+    if(el24){
+      el24.textContent=(d24>=0?'+':'')+d24+' 24h';
+      el24.style.color=gc(d24);
+    }
+  }
+
+  // Načti události pro obě měny v zobrazovaném rozsahu
+  const cutoffStr=cutoff.toISOString();
+  const [evA,evB]=await Promise.all([
+    api(`economic_events?currency=eq.${a}&event_datetime=gte.${encodeURIComponent(cutoffStr)}&actual=not.is.null&event_type=not.in.(cot,sentiment,other)&event_name=not.ilike.*Myfxbook*&select=id,event_name,event_type,event_datetime,actual,forecast&order=event_datetime.asc&limit=200`),
+    api(`economic_events?currency=eq.${b}&event_datetime=gte.${encodeURIComponent(cutoffStr)}&actual=not.is.null&event_type=not.in.(cot,sentiment,other)&event_name=not.ilike.*Myfxbook*&select=id,event_name,event_type,event_datetime,actual,forecast&order=event_datetime.asc&limit=200`)
+  ]);
+  // Načti skóre pro všechny události najednou
+  const allIds=[...evA,...evB].map(e=>e.id);
+  const evScores=allIds.length?await api(`event_scores?event_id=in.(${allIds.join(',')})&select=event_id,score,bias`):[];
+  const evScoreMap={};
+  evScores.forEach(s=>evScoreMap[s.event_id]=s);
+
+  // Seskup události podle dne (YYYY-MM-DD)
+  const evByDate={};
+  [...evA.map(e=>({...e,ccy:a})),...evB.map(e=>({...e,ccy:b}))].forEach(e=>{
+    const day=e.event_datetime.slice(0,10);
+    if(!evByDate[day]) evByDate[day]=[];
+    evByDate[day].push({...e,...(evScoreMap[e.id]||{})});
+  });
+
+  // Body: větší kde vycházely zprávy, jinak malé
+  const pointColors=dates.map(d=>evByDate[d]?.length?'#ffffff':'#f0b429');
+  const pointRadii=dates.map(d=>evByDate[d]?.length?5:2);
 
   const ctx=document.getElementById('histChart').getContext('2d');
   if(histChart)histChart.destroy();
@@ -1331,14 +1476,16 @@ async function renderHistory(){
       label:'Score',data:diff,
       borderColor:'#f0b429',
       backgroundColor:'rgba(240,180,41,0.06)',
-      borderWidth:2,pointRadius:3,pointBackgroundColor:'#f0b429',
+      borderWidth:2,
+      pointRadius:pointRadii,
+      pointBackgroundColor:pointColors,
+      pointBorderColor:pointColors,
       fill:true,tension:.35
     }]},
     options:{
       responsive:true,maintainAspectRatio:false,
       onClick:(e,els)=>{
         if(!els.length){
-          // Klik mimo bod → reset na live
           if(historyMode) resetHistoryMode();
           return;
         }
@@ -1352,9 +1499,24 @@ async function renderHistory(){
         tooltip:{
           backgroundColor:'#1c1e22',borderColor:'rgba(255,255,255,0.1)',borderWidth:1,
           titleColor:'#8b8f99',bodyColor:'#e2e4e8',
+          padding:10,
           callbacks:{
-            label:ctx=>'Score: '+(ctx.raw>0?'+':'')+ctx.raw,
-            afterLabel:()=>'← klikni pro detail'
+            label:c=>'Score: '+(c.raw>0?'+':'')+c.raw,
+            afterBody:c=>{
+              const idx=c[0].dataIndex;
+              const day=dates[idx];
+              const evs=evByDate[day];
+              if(!evs||!evs.length) return['← klikni pro detail'];
+              const lines=[''];
+              evs.forEach(e=>{
+                const sc=e.score!=null?(e.score>0?'+':'')+e.score:'?';
+                const col=e.score>0?'▲':e.score<0?'▼':'–';
+                lines.push(`${col} [${e.ccy}] ${(e.event_name||'').substring(0,32)}  ${sc}`);
+              });
+              lines.push('');
+              lines.push('← klikni pro detail skóre');
+              return lines;
+            }
           }
         }
       },
@@ -1394,10 +1556,6 @@ async function loadHistoricalScores(dateA, dateB, label){
     CS_LIVE={...CS};
     CS[a]=ra[0];
     CS[b]=rb[0];
-    // Přidej seasonality score (zůstane live)
-    CS[a].score_seasonal=CS_LIVE[a]?.score_seasonal;
-    CS[b].score_seasonal=CS_LIVE[b]?.score_seasonal;
-
     renderScoreOverview();
   }catch(e){
     console.error('loadHistoricalScores error:',e);
@@ -1559,10 +1717,39 @@ async function renderCotBarChart(){
   }
 }
 
+let cotMode='delta'; // 'delta' nebo 'percentile'
+
 async function renderCOT(){
   const[a,b]=activePair.split('/');
   document.getElementById('cot-pair-lbl').textContent=activePair;
   const panel=document.getElementById('cot-panel');
+
+  // Přepínač delta / percentile
+  const hdr=document.getElementById('cot-pair-lbl')?.closest('.card-header');
+  if(hdr&&!hdr.querySelector('.cot-mode-toggle')){
+    const tog=document.createElement('div');
+    tog.className='cot-mode-toggle';
+    tog.style.cssText='display:flex;gap:4px;margin-left:auto';
+    tog.innerHTML=`
+      <button id="cot-btn-delta" onclick="cotMode='delta';renderCOT()" style="padding:3px 9px;font-size:10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--mono)">Δ týden</button>
+      <button id="cot-btn-pct" onclick="cotMode='percentile';renderCOT()" style="padding:3px 9px;font-size:10px;border-radius:5px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:var(--mono)">Pozice %</button>
+    `;
+    hdr.appendChild(tog);
+  }
+  // Zvýrazni aktivní tlačítko
+  const btnD=document.getElementById('cot-btn-delta');
+  const btnP=document.getElementById('cot-btn-pct');
+  if(btnD&&btnP){
+    btnD.style.color=cotMode==='delta'?'var(--gold)':'var(--text2)';
+    btnD.style.borderColor=cotMode==='delta'?'var(--gold)':'var(--border)';
+    btnP.style.color=cotMode==='percentile'?'var(--gold)':'var(--text2)';
+    btnP.style.borderColor=cotMode==='percentile'?'var(--gold)':'var(--border)';
+  }
+
+  if(cotMode==='percentile'){
+    renderCOTPercentile(a,b,panel);
+    return;
+  }
 
   // Získej COT data pro měnu — přednostně z Google Sheets
   function getCotDetail(ccy){
@@ -1653,14 +1840,19 @@ async function renderCOT(){
             callbacks:{
               title:()=>`COT · ${ccy}`,
               label:(item)=>{
-                if(item.dataIndex!==0) return null;
+                // Zobraz hodnoty při hoveru nad oběma segmenty (filled i empty)
+                if(item.dataIndex!==0) return [
+                  `Změna: ${d.changePct>0?'+':''}${d.changePct}%`,
+                  `Nové:  ${fmtNet(d.netNew)}`,
+                  `Staré: ${fmtNet(d.netOld)}`,
+                ];
                 return [
                   `Změna: ${d.changePct>0?'+':''}${d.changePct}%`,
                   `Nové:  ${fmtNet(d.netNew)}`,
                   `Staré: ${fmtNet(d.netOld)}`,
                 ];
               },
-              filter:(item)=>item.dataIndex===0
+              filter:()=>true
             }
           }
         },
@@ -1676,6 +1868,65 @@ async function renderCOT(){
   };
 }
 
+function renderCOTPercentile(a,b,panel){
+  // COT_EXTREMES jsou načteny z /api/cot-extremes nebo ze zálohy
+  // Fallback data z cot_extremes.json (vypočítaná ze Pine Script dat)
+  const FALLBACK={
+    EUR:{current:40200,min:-75573,max:187089,percentile:44.1},
+    GBP:{current:-43059,min:-93221,max:142183,percentile:21.3},
+    NZD:{current:-39150,min:-56781,max:30743,percentile:20.1},
+    CHF:{current:-36197,min:-49793,max:-435,percentile:27.5},
+    JPY:{current:-75102,min:-184223,max:179212,percentile:30.0},
+    CAD:{current:-16242,min:-196263,max:36159,percentile:77.5},
+    AUD:{current:84990,min:-107538,max:84990,percentile:100.0},
+    USD:{current:-479,min:-20772,max:20210,percentile:49.5},
+  };
+
+  function pctItem(ccy){
+    const d=COT_EXTREMES[ccy]||FALLBACK[ccy]||null;
+    if(!d) return`<div class="cot-item"><span class="cot-title">COT · ${ccy}</span><div class="cot-canvas-wrap"><canvas id="cotp-${ccy}" width="160" height="160"></canvas><span class="cot-pct" style="color:var(--text3)">—</span></div></div>`;
+    const p=Math.round(d.percentile*10)/10;
+    const col=p>=90?'#ff4466':p<=10?'#4caf93':p>=75||p<=25?'#ff9900':'var(--text2)';
+    const label=p>=90?'EXTRÉM LONG':p<=10?'EXTRÉM SHORT':p>=75?'BLÍŽÍ SE MAX':p<=25?'BLÍŽÍ SE MIN':'NEUTRÁL';
+    const fmtK=v=>{const k=Math.round(v/1000);return(k>0?'+':'')+k+'K';};
+    return`<div class="cot-item">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span class="cot-title">COT · ${ccy}</span>
+        <span style="font-size:9px;font-family:var(--mono);color:${col};background:${col==='var(--text2)'?'transparent':'rgba(128,128,128,0.1)'};padding:2px 5px;border-radius:3px">${p}%</span>
+      </div>
+      <div class="cot-canvas-wrap">
+        <canvas id="cotp-${ccy}" width="160" height="160" role="img" aria-label="COT percentile ${ccy}"></canvas>
+        <div style="text-align:center">
+          <div style="font-size:18px;font-weight:600;font-family:var(--mono);color:${col};letter-spacing:-0.5px">${p}%</div>
+          <div style="font-size:8px;color:var(--text3);margin-top:2px">${label}</div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--text3);font-family:var(--mono)">
+        <span>min ${fmtK(d.min)}</span><span>akt ${fmtK(d.current)}</span><span>max ${fmtK(d.max)}</span>
+      </div>
+    </div>`;
+  }
+
+  panel.innerHTML=pctItem(a)+pctItem(b);
+
+  [a,b].forEach(ccy=>{
+    const d=COT_EXTREMES[ccy]||FALLBACK[ccy]||null;
+    const ctx2=document.getElementById('cotp-'+ccy)?.getContext('2d');
+    if(!ctx2||!d) return;
+    if(cotCharts['p_'+ccy]) cotCharts['p_'+ccy].destroy();
+    const p=d.percentile;
+    const col=p>=90?'#ff4466':p<=10?'#4caf93':p>=75||p<=25?'#ff9900':'#888';
+    const bgCol='rgba(255,255,255,0.05)';
+    const filled=p;
+    const empty=100-p;
+    cotCharts['p_'+ccy]=new Chart(ctx2,{
+      type:'doughnut',
+      data:{datasets:[{data:[filled,empty],backgroundColor:[col,bgCol],borderWidth:0}]},
+      options:{cutout:'72%',animation:{duration:400},plugins:{legend:{display:false},tooltip:{enabled:false}}}
+    });
+  });
+}
+
 function getPairs(){
   const pairs=[];
   for(let i=0;i<CCYS.length;i++) for(let j=i+1;j<CCYS.length;j++){
@@ -1684,9 +1935,13 @@ function getPairs(){
     const raw=a+'/'+b;
     const canonical=CANONICAL_PAIRS[raw]||raw;
     const[ca,cb]=canonical.split('/');
-    const s=Math.round(((CS[ca]?.total_score||0)-(CS[cb]?.total_score||0))*10)/10;
-    const d=Math.round(((CS[ca]?.delta_24h||0)-(CS[cb]?.delta_24h||0))*10)/10;
-    pairs.push({pair:canonical,score:s,delta:d,base:ca,quote:cb});
+    function _compSumP(r){return r?(r.score_cpi||0)+(r.score_gdp||0)+(r.score_labor||0)+(r.score_mfg_pmi||0)+(r.score_svc_pmi||0)+(r.score_rate||0)+(r.score_retail||0):0;}
+    const s=Math.round((_compSumP(CS[ca])-_compSumP(CS[cb]))*10)/10;
+    const dA=_compSumP(CS[ca])-_compSumP(CS_PREV[ca]||null);
+    const dB=_compSumP(CS[cb])-_compSumP(CS_PREV[cb]||null);
+    const d=Math.round((dA-dB)*10)/10;
+    const signal=getSignal(ca,cb);
+    pairs.push({pair:canonical,score:s,delta:d,base:ca,quote:cb,signal});
   }
   return pairs;
 }
@@ -1703,59 +1958,77 @@ function selectPairAndGoAnalyzer(pair){
   onPairChange();
 }
 
-function rankRow(p){
+// ── Oblíbené páry ───────────────────────────────────────────────────────────
+let FAVORITES=new Set(JSON.parse(localStorage.getItem('fa_favorites')||'[]'));
+function saveFavorites(){localStorage.setItem('fa_favorites',JSON.stringify([...FAVORITES]));}
+function toggleFavorite(pair,e){
+  e.stopPropagation();
+  if(FAVORITES.has(pair)) FAVORITES.delete(pair); else FAVORITES.add(pair);
+  saveFavorites();
+  renderRankings();
+}
+function renderFavorites(pairs){
+  const favPairs=pairs.filter(p=>FAVORITES.has(p.pair));
+  const sec=document.getElementById('favorites-section');
+  const el=document.getElementById('rank-favorites');
+  if(!favPairs.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  el.innerHTML=favPairs.map(p=>rankRow(p,true)).join('');
+}
+
+function rankRow(p,inFavorites){
   const max=15,pct=Math.min(Math.abs(p.score)/max*100,100);
   const col=p.score>0?'var(--green)':p.score<0?'var(--red)':'var(--text3)';
+  const isFav=FAVORITES.has(p.pair);
+  const starCol=isFav?'var(--gold)':'var(--text3)';
+  const starChar=isFav?'★':'☆';
   return`<div class="rank-row" style="cursor:pointer" onclick="selectPairAndGoAnalyzer('${p.pair}')">
     <span class="rank-pair">${p.pair}</span>
     <div class="rank-bar-bg"><div class="rank-bar" style="width:${pct}%;background:${col}"></div></div>
     <span class="rank-score" style="color:${col}">${fmt(p.score)}</span>
     <span class="rank-delta" style="color:${p.delta>=0?'var(--green)':'var(--red)'}">${fmt(p.delta)}</span>
+    <span onclick="toggleFavorite('${p.pair}',event)" style="color:${starCol};font-size:14px;padding:0 4px 0 6px;cursor:pointer;transition:color .15s" title="${isFav?'Odebrat z oblíbených':'Přidat do oblíbených'}">${starChar}</span>
   </div>`;
 }
 
 function renderRankings(){
   const pairs=getPairs();
-  if(!pairs.length){['rank-movers','rank-bull','rank-bear'].forEach(id=>document.getElementById(id).innerHTML='<div class="empty">Nedostatek dat</div>');return;}
+  if(!pairs.length){['rank-movers','rank-long','rank-short'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML='<div class="empty">Nedostatek dat</div>';});return;}
   const byD=[...pairs].sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta));
-  const byS=[...pairs].sort((a,b)=>b.score-a.score);
-  document.getElementById('rank-movers').innerHTML=byD.slice(0,5).map(rankRow).join('');
-  document.getElementById('rank-bull').innerHTML=byS.slice(0,5).map(rankRow).join('');
-  document.getElementById('rank-bear').innerHTML=byS.slice(-5).reverse().map(rankRow).join('');
+  const longs=pairs.filter(p=>p.signal==='long').sort((a,b)=>b.score-a.score);
+  const shorts=pairs.filter(p=>p.signal==='short').sort((a,b)=>a.score-b.score);
+  renderFavorites(pairs);
+  document.getElementById('rank-movers').innerHTML=byD.slice(0,6).map(p=>rankRow(p)).join('');
+  document.getElementById('rank-long').innerHTML=longs.length?longs.map(p=>rankRow(p)).join(''):'<div class="empty">Žádné long signály</div>';
+  document.getElementById('rank-short').innerHTML=shorts.length?shorts.map(p=>rankRow(p)).join(''):'<div class="empty">Žádné short signály</div>';
+  renderPairsTable();
 }
 
 function renderPairsTable(){
-  const CCY_ORDER=['USD','EUR','GBP','JPY','AUD','CAD','NZD','CHF'];
-  let pairs=getPairs();
-
-  // Výchozí řazení podle měnové hierarchie
-  if(pairsSort==='default'){
-    pairs.sort((a,b)=>{
-      const ai=Math.min(CCY_ORDER.indexOf(a.base),CCY_ORDER.indexOf(a.quote));
-      const bi=Math.min(CCY_ORDER.indexOf(b.base),CCY_ORDER.indexOf(b.quote));
-      if(ai!==bi) return ai-bi;
-      return b.score-a.score;
-    });
-  } else if(pairsSort==='score'){
-    pairs.sort((a,b)=>pairsSortDir==='desc'?b.score-a.score:a.score-b.score);
-  } else if(pairsSort==='delta'){
-    pairs.sort((a,b)=>pairsSortDir==='desc'?b.delta-a.delta:a.delta-b.delta);
-  }
-
   const el=document.getElementById('pairs-table');
+  const sec=document.getElementById('signal-section');
   if(!el) return;
 
-  const sortArrow=(col)=>{
-    if(pairsSort!==col) return '<span style="color:var(--text3);font-size:10px">⇅</span>';
-    return pairsSortDir==='desc'?'<span style="color:var(--gold)">↓</span>':'<span style="color:var(--gold)">↑</span>';
-  };
+  const pairs=getPairs().filter(p=>p.signal).sort((a,b)=>Math.abs(b.score)-Math.abs(a.score));
+
+  // Aktualizuj tlačítko
+  const filterBtn=document.getElementById('pairs-signal-filter');
+  if(filterBtn){
+    filterBtn.textContent=`✦ Signály (${pairs.length})`;
+    filterBtn.style.color=pairs.length?'var(--gold)':'var(--text3)';
+    filterBtn.style.borderColor=pairs.length?'var(--gold)':'var(--text3)';
+  }
+
+  // Zobraz/skryj sekci
+  if(sec) sec.style.display=pairs.length?'block':'none';
+  if(!pairs.length){el.innerHTML='';return;}
 
   el.innerHTML=`<table class="pairs-tbl">
     <thead><tr>
       <th>Symbol</th>
-      <th style="cursor:pointer" onclick="sortPairs('score')">Score ${sortArrow('score')}</th>
-      <th style="cursor:pointer" onclick="sortPairs('delta')">24H ${sortArrow('delta')}</th>
+      <th>24H</th>
       <th>COT</th>
+      <th>Signal</th>
     </tr></thead>
     <tbody>${pairs.map(p=>{
       const[a,b]=p.pair.split('/');
@@ -1763,11 +2036,15 @@ function renderPairsTable(){
       const cotA=ca?.score_cot??0,cotB=cb?.score_cot??0;
       const cotCol=(c)=>c>0?'var(--green)':c<0?'var(--red)':'var(--text3)';
       const sc=p.score,d=p.delta;
-      return`<tr class="pairs-row" onclick="selectPairAndGoAnalyzer('${p.pair}')"
+      const sigHtml=p.signal==='long'
+        ?'<span style="color:#4caf93;font-weight:700;font-size:12px;font-family:var(--mono);letter-spacing:.04em">▲ LONG</span>'
+        :'<span style="color:#e05c5c;font-weight:700;font-size:12px;font-family:var(--mono);letter-spacing:.04em">▼ SHORT</span>';
+      return`<tr class="pairs-row" onclick="selectPairAndGoAnalyzer('${p.pair}')">
         <td class="pairs-sym">${p.pair.replace('/','-')}</td>
         <td style="color:${gc(sc)};font-family:var(--mono);font-weight:600">${fmt(sc)}</td>
         <td style="color:${gc(d)};font-family:var(--mono)">${fmt(d)}</td>
         <td><span style="color:${cotCol(cotA)};font-size:10px;font-family:var(--mono)">${a}</span> <span style="font-size:8px">●</span> <span style="color:${cotCol(cotB)};font-size:10px;font-family:var(--mono)">${b}</span></td>
+        <td>${sigHtml}</td>
       </tr>`;
     }).join('')}</tbody>
   </table>`;
@@ -1783,7 +2060,6 @@ function sortPairs(col){
   renderPairsTable();
 }
 
-
 function renderNews(events){
   const el=document.getElementById('news-list');
   if(!events.length){el.innerHTML='<div class="empty">Žádné zprávy</div>';return;}
@@ -1791,6 +2067,7 @@ function renderNews(events){
     const ev=e.economic_events||{};
     const dt=ev.event_datetime?new Date(ev.event_datetime).toLocaleString('cs-CZ',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
     const sc=e.score||0;
+    const col=sc>0?'var(--green)':sc<0?'var(--red)':'var(--text2)';
     return`<div class="news-row">
       <span class="news-time">${dt}</span>
       <div class="news-content">
@@ -1817,7 +2094,7 @@ function showPage(name,btn){
     }
   }
   if(name==='analyzer' && !activePair){
-    onPairChange(); // zobraz placeholder v analyzeru
+    onPairChange();
   }
 }
 
@@ -1828,59 +2105,30 @@ function updateInputFields(){
   document.getElementById('cot-row').classList.toggle('hidden',t!=='cot');
 }
 
-function calcScore(){
-  const t=document.getElementById('inp-type').value;
+async function calcScore(){
   const ccy=document.getElementById('inp-ccy').value;
-  const a=parseFloat(document.getElementById('inp-actual').value)||0;
-  const f=parseFloat(document.getElementById('inp-forecast').value)||0;
-  const p=parseFloat(document.getElementById('inp-previous').value)||0;
-  const diff=+(a-f).toFixed(3);
-  let s=0,bias='Neutral';
-  if(t==='cot'){
-    const o=parseFloat(document.getElementById('inp-cot-old').value)||0;
-    const n=parseFloat(document.getElementById('inp-cot-new').value)||0;
-    s=n>o?1:n<o?-1:0; bias=s>0?'Bullish':s<0?'Bearish':'Neutral';
-  } else if(t==='retail'||t==='cpi'){
-    if(diff>=0.4&&a>p){s=2;bias='Strong Bullish';}
-    else if(diff>=0.1){s=1;bias='Bullish';}
-    else if(diff>0){s=1;bias='Bullish';}
-    else if(Math.abs(diff)<0.1){s=0;bias='Neutral';}
-    else if(diff>-0.4){s=-1;bias='Bearish';}
-    else{s=-2;bias='Strong Bearish';}
-  } else if(t==='mfg_pmi'||t==='svc_pmi'){
-    if(a>f&&a>p&&a>50){s=2;bias='Strong Bullish';}
-    else if(a>f||a>50){s=1;bias='Bullish';}
-    else if(Math.abs(diff)<=0.1){s=0;bias='Neutral';}
-    else if(a<f&&a<p&&a<50){s=-2;bias='Strong Bearish';}
-    else{s=-1;bias='Bearish';}
-  } else if(t==='gdp'){
-    if(diff>=0.3&&a>p){s=2;bias='Strong Bullish';}
-    else if(diff>0){s=1;bias='Bullish';}
-    else if(Math.abs(diff)<0.05){s=0;bias='Neutral';}
-    else if(diff>-0.3){s=-1;bias='Bearish';}
-    else{s=-2;bias='Strong Bearish';}
-  } else if(t==='rate'){
-    const tone=document.getElementById('inp-tone').value;
-    if(a>p||(a===p&&tone==='hawkish')){s=a>f?2:1;bias=s===2?'Strong Bullish':'Bullish';}
-    else if(a===p&&tone==='neutral'){s=0;bias='Neutral';}
-    else{s=a<f?-2:-1;bias=s===-2?'Strong Bearish':'Bearish';}
-  } else if(t==='labor'){
-    s=diff>50?2:diff>0?1:diff>-50?-1:-2;
-    bias=s===2?'Strong Bullish':s===1?'Bullish':s===-1?'Bearish':'Strong Bearish';
-  }
-  const col=s>0?'var(--green)':s<0?'var(--red)':'var(--text2)';
+  const type=document.getElementById('inp-type').value;
+  const actual=parseFloat(document.getElementById('inp-actual').value)||0;
+  const forecast=parseFloat(document.getElementById('inp-forecast').value)||0;
+  const previous=parseFloat(document.getElementById('inp-previous').value)||0;
   const res=document.getElementById('calc-result');
   res.classList.remove('hidden');
-  res.innerHTML=`<div style="color:var(--text2);margin-bottom:8px">${ccy} · ${t.toUpperCase()}</div>
-    <div style="color:var(--text2);margin-bottom:10px">A=${a} · F=${f} · diff=${diff>0?'+':''}${diff}</div>
-    <div style="display:flex;align-items:center;gap:12px">
-      <span style="font-size:28px;font-weight:700;color:${col}">${s>0?'+':''}${s}</span>
-      <span style="padding:4px 12px;border-radius:20px;border:1px solid ${col};color:${col};font-size:12px">${bias}</span>
-    </div>`;
+  res.innerHTML='<div style="color:var(--text3)">Počítám...</div>';
+  try{
+    const r=await fetch(BACKEND+'/api/score',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({currency:ccy,event_type:type,actual,forecast,previous})
+    });
+    const j=await r.json();
+    const sc=j.score??0;
+    const col=sc>0?'var(--green)':sc<0?'var(--red)':'var(--text2)';
+    res.innerHTML='<div style="font-family:var(--mono);font-size:18px;color:'+col+';font-weight:700">'+(sc>0?'+':'')+sc+'</div>';
+  }catch(e){
+    res.innerHTML='<div style="color:var(--red)">Chyba: '+e.message+'</div>';
+  }
 }
 
 loadAll();
-setInterval(loadAll,5*60*1000);
 </script>
 </body>
 </html>
