@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Forex Analyzer</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23000'/><text x='28' y='72' font-family='Georgia,serif' font-size='62' font-weight='700' fill='white'>F</text><text x='52' y='72' font-family='Georgia,serif' font-size='62' font-weight='700' fill='%23f0b429'>A</text></svg>">
+<link rel="icon" type="image/png" href="logo.svg">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <style>
@@ -199,11 +199,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 <!-- HEADER -->
 <div class="header">
   <div class="header-brand">
-    <svg width="36" height="36" viewBox="0 0 100 100" style="border-radius:8px;flex-shrink:0">
-      <rect width="100" height="100" rx="14" fill="#000"/>
-      <text x="28" y="72" font-family="Georgia,serif" font-size="62" font-weight="700" fill="white">F</text>
-      <text x="52" y="72" font-family="Georgia,serif" font-size="62" font-weight="700" fill="#f0b429">A</text>
-    </svg>
+    <img src="logo.svg" height="36" style="flex-shrink:0;object-fit:contain">
     <div class="brand-name">FOREX <span>ANALYZER</span></div>
     <div class="pair-select" style="position:relative;padding:0">
       <div style="display:flex;align-items:center;gap:8px;padding:6px 12px">
@@ -1872,36 +1868,43 @@ function renderCOTPercentile(a,b,panel){
   // COT_EXTREMES jsou načteny z /api/cot-extremes nebo ze zálohy
   // Fallback data z cot_extremes.json (vypočítaná ze Pine Script dat)
   const FALLBACK={
-    EUR:{current:40200,min:-75573,max:187089,percentile:44.1},
-    GBP:{current:-43059,min:-93221,max:142183,percentile:21.3},
-    NZD:{current:-39150,min:-56781,max:30743,percentile:20.1},
-    CHF:{current:-36197,min:-49793,max:-435,percentile:27.5},
-    JPY:{current:-75102,min:-184223,max:179212,percentile:30.0},
-    CAD:{current:-16242,min:-196263,max:36159,percentile:77.5},
-    AUD:{current:84990,min:-107538,max:84990,percentile:100.0},
-    USD:{current:-479,min:-20772,max:20210,percentile:49.5},
+    EUR:{current:40200,min:-75573,max:187089,percentile:27.2},
+    GBP:{current:-43059,min:-93221,max:142183,percentile:10.4},
+    NZD:{current:-39150,min:-56781,max:30743,percentile:19.2},
+    CHF:{current:-36197,min:-49793,max:-435,percentile:24.9},
+    JPY:{current:-75102,min:-184223,max:179212,percentile:35.5},
+    CAD:{current:-16242,min:-196263,max:36159,percentile:83.2},
+    AUD:{current:84990,min:-107538,max:84990,percentile:99.4},
+    USD:{current:-479,min:-20772,max:20210,percentile:57.5},
   };
 
   function pctItem(ccy){
     const d=COT_EXTREMES[ccy]||FALLBACK[ccy]||null;
+    // Přepiš current živými daty z Google Sheets pokud jsou dostupná
+    if(d && COT_DATA && COT_DATA[ccy] && COT_DATA[ccy].netNew!=null){
+      d.current=COT_DATA[ccy].netNew;
+    }
     if(!d) return`<div class="cot-item"><span class="cot-title">COT · ${ccy}</span><div class="cot-canvas-wrap"><canvas id="cotp-${ccy}" width="160" height="160"></canvas><span class="cot-pct" style="color:var(--text3)">—</span></div></div>`;
     const p=Math.round(d.percentile*10)/10;
-    const col=p>=90?'#ff4466':p<=10?'#4caf93':p>=75||p<=25?'#ff9900':'var(--text2)';
-    const label=p>=90?'EXTRÉM LONG':p<=10?'EXTRÉM SHORT':p>=75?'BLÍŽÍ SE MAX':p<=25?'BLÍŽÍ SE MIN':'NEUTRÁL';
+    const donutCol=p<=40?'#ff4466':p<=60?'#888':p<=100?'#00d084':'#00d084';
+    const numCol=p<=20?'#f0b429':p<=40?'#ff4466':p<=60?'#888':p<=80?'#00d084':'#f0b429';
+    const col=numCol;
+    const label=p>=80?'EXTRÉM LONG':p<=20?'EXTRÉM SHORT':p>=60?'BLÍŽÍ SE MAX':p<=40?'BLÍŽÍ SE MIN':'NEUTRÁL';
     const fmtK=v=>{const k=Math.round(v/1000);return(k>0?'+':'')+k+'K';};
     return`<div class="cot-item">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
         <span class="cot-title">COT · ${ccy}</span>
         <span style="font-size:9px;font-family:var(--mono);color:${col};background:${col==='var(--text2)'?'transparent':'rgba(128,128,128,0.1)'};padding:2px 5px;border-radius:3px">${p}%</span>
       </div>
-      <div class="cot-canvas-wrap">
-        <canvas id="cotp-${ccy}" width="160" height="160" role="img" aria-label="COT percentile ${ccy}"></canvas>
-        <div style="text-align:center">
-          <div style="font-size:18px;font-weight:600;font-family:var(--mono);color:${col};letter-spacing:-0.5px">${p}%</div>
-          <div style="font-size:8px;color:var(--text3);margin-top:2px">${label}</div>
-        </div>
+      <div style="position:relative;height:160px;display:flex;align-items:center;justify-content:center">
+        <canvas id="cotp-${ccy}" width="160" height="160" role="img" aria-label="COT percentile ${ccy}" style="position:absolute"></canvas>
       </div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:9px;color:var(--text3);font-family:var(--mono)">
+      <div style="text-align:center;margin-top:6px">
+        <div style="font-size:22px;font-weight:600;font-family:var(--mono);color:${numCol};letter-spacing:-0.5px">${p}%</div>
+        <div style="font-size:11px;font-weight:500;color:${numCol};margin-top:2px;letter-spacing:.03em">${label}</div>
+        ${p<=20?`<div style="font-size:10px;font-weight:700;font-family:var(--mono);color:#4caf93;margin-top:6px;letter-spacing:0.05em">LONG SIGNAL ↑</div>`:p>=80?`<div style="font-size:10px;font-weight:700;font-family:var(--mono);color:#ff4466;margin-top:6px;letter-spacing:0.05em">SHORT SIGNAL ↓</div>`:''}
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:9px;color:var(--text3);font-family:var(--mono)">
         <span>min ${fmtK(d.min)}</span><span>akt ${fmtK(d.current)}</span><span>max ${fmtK(d.max)}</span>
       </div>
     </div>`;
@@ -1915,13 +1918,11 @@ function renderCOTPercentile(a,b,panel){
     if(!ctx2||!d) return;
     if(cotCharts['p_'+ccy]) cotCharts['p_'+ccy].destroy();
     const p=d.percentile;
-    const col=p>=90?'#ff4466':p<=10?'#4caf93':p>=75||p<=25?'#ff9900':'#888';
+    const col=p>60?'#00d084':p>=40?'#888':'#ff4466';
     const bgCol='rgba(255,255,255,0.05)';
-    const filled=p;
-    const empty=100-p;
     cotCharts['p_'+ccy]=new Chart(ctx2,{
       type:'doughnut',
-      data:{datasets:[{data:[filled,empty],backgroundColor:[col,bgCol],borderWidth:0}]},
+      data:{datasets:[{data:[p,100-p],backgroundColor:[col,bgCol],borderWidth:0}]},
       options:{cutout:'72%',animation:{duration:400},plugins:{legend:{display:false},tooltip:{enabled:false}}}
     });
   });
@@ -2105,30 +2106,6 @@ function updateInputFields(){
   document.getElementById('cot-row').classList.toggle('hidden',t!=='cot');
 }
 
-async function calcScore(){
-  const ccy=document.getElementById('inp-ccy').value;
-  const type=document.getElementById('inp-type').value;
-  const actual=parseFloat(document.getElementById('inp-actual').value)||0;
-  const forecast=parseFloat(document.getElementById('inp-forecast').value)||0;
-  const previous=parseFloat(document.getElementById('inp-previous').value)||0;
-  const res=document.getElementById('calc-result');
-  res.classList.remove('hidden');
-  res.innerHTML='<div style="color:var(--text3)">Počítám...</div>';
-  try{
-    const r=await fetch(BACKEND+'/api/score',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({currency:ccy,event_type:type,actual,forecast,previous})
-    });
-    const j=await r.json();
-    const sc=j.score??0;
-    const col=sc>0?'var(--green)':sc<0?'var(--red)':'var(--text2)';
-    res.innerHTML='<div style="font-family:var(--mono);font-size:18px;color:'+col+';font-weight:700">'+(sc>0?'+':'')+sc+'</div>';
-  }catch(e){
-    res.innerHTML='<div style="color:var(--red)">Chyba: '+e.message+'</div>';
-  }
-}
-
 loadAll();
 </script>
-</body>
-</html>
+</b
